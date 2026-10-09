@@ -1,0 +1,55 @@
+# deps / build
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# env & secrets — only .env.example is committed
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# hardhat
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/ignition/deployments/chain-31337/
+
+# supabase local
+supabase/.branches/
+supabase/.temp/
+
+# tooling / OS
+.vercel/
+.claude/data/
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
+npm-debug.log*
+*.log
+
+# local-chain deployments are ephemeral
+contracts/deployments/local*
+contracts/deployments/events-local.json
+contracts/types/ethers-contracts/
+
+# local runtime data (encrypted parts, embedded db)
+.data/
+
+# imported case files are bulky and regenerated from data/cases-*; only the template is tracked
+data/cases/*
+!data/cases/manifest.template.csv
+
+# generated deploy package
+.deploy/
+
+# AWS resource ids / account number for this deployment (not secret, but not needed by others)
+infra/aws-state.json
+
+# editor/agent tooling state
+.claude/

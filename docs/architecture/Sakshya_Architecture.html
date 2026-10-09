@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Sakshya — System Architecture & Workflows</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm; }
+  :root { --ink:#0f1b33; --mute:#5b6b85; --line:#d6dde9; --bg:#f6f8fc; --brand:#2f5bea; --ok:#0f9d6b; --bad:#d6334a; --warn:#c98a04; --aws:#ff9900; --chain:#7b3fe4; }
+  * { box-sizing:border-box; }
+  body { font:12px/1.45 "Segoe UI",Arial,sans-serif; color:var(--ink); margin:0; }
+  .page { page-break-after:always; min-height:180mm; }
+  .page:last-child { page-break-after:auto; }
+  h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:18px; margin:0 0 4px; color:var(--brand); } h3 { font-size:13px; margin:10px 0 4px; }
+  .sub { color:var(--mute); margin-bottom:10px; }
+  .cover { display:flex; flex-direction:column; justify-content:center; height:180mm; }
+  .cover h1 { font-size:40px; } .tag { display:inline-block; padding:3px 10px; border-radius:99px; background:#e8eeff; color:var(--brand); font-weight:600; margin:4px 6px 0 0; }
+  .grid { display:grid; gap:8px; } .g2 { grid-template-columns:1fr 1fr; } .g3 { grid-template-columns:repeat(3,1fr); } .g4 { grid-template-columns:repeat(4,1fr); } .g5 { grid-template-columns:repeat(5,1fr); }
+  .box { border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:#fff; }
+  .box b { display:block; margin-bottom:2px; }
+  .lane { border:1.5px dashed var(--line); border-radius:10px; padding:8px; background:var(--bg); margin-bottom:8px; }
+  .lane > .t { font-weight:700; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--mute); margin-bottom:6px; }
+  .aws { border-color:var(--aws); background:#fff8ec; } .chain { border-color:var(--chain); background:#f5efff; } .ok { border-color:var(--ok); background:#ecfaf4; } .bad { border-color:var(--bad); background:#fff0f2; } .warn { border-color:var(--warn); background:#fff9e8; } .app { border-color:var(--brand); background:#eef3ff; }
+  .arrow { text-align:center; color:var(--mute); font-size:16px; line-height:1; margin:2px 0; }
+  .step { display:grid; grid-template-columns:26px 1fr; gap:8px; align-items:start; margin:4px 0; }
+  .n { background:var(--brand); color:#fff; border-radius:50%; width:22px; height:22px; text-align:center; font-weight:700; line-height:22px; }
+  table { border-collapse:collapse; width:100%; } th,td { border:1px solid var(--line); padding:4px 6px; text-align:left; vertical-align:top; } th { background:var(--bg); }
+  .pill { display:inline-block; padding:1px 7px; border-radius:99px; font-size:10.5px; font-weight:700; }
+  .built { background:#d9f5e8; color:#0b6b48; } .planned { background:#fff0c9; color:#7a5200; } .local { background:#e8eeff; color:#1d3fa8; }
+  code { background:#eef1f7; padding:1px 4px; border-radius:4px; font-size:11px; }
+  .note { border-left:4px solid var(--warn); background:#fff9e8; padding:6px 10px; margin-top:8px; border-radius:4px; }
+  .foot { color:var(--mute); font-size:10px; margin-top:6px; }
+</style></head><body>
+
+<!-- ============ COVER ============ -->
+<section class="page cover">
+  <div><span class="tag">PS 3 · LegalTech</span><span class="tag">Post-quantum</span><span class="tag">Zero-trust</span><span class="tag">AWS + Polygon</span></div>
+  <h1>Sakshya</h1>
+  <p style="font-size:18px;margin:4px 0 14px">Tamper-evident, quantum-safe, zero-trust judicial &amp; forensic document management</p>
+  <p class="sub">System architecture · workflows · access model · trust boundaries<br>Hack-a-Night 2026 · PVGCOE Nashik · prepared 9 Oct 2026</p>
+  <div class="box" style="max-width:560px"><b>How to read this document</b>
+    p.2 System architecture · p.3 Evidence upload workflow · p.4 Verification &amp; tamper detection · p.5 Case folder, parts &amp; assembly · p.6 Court request workflow · p.7 Roles &amp; access · p.8 Data model · p.9 Trust boundaries &amp; honest status
+  </div>
+</section>
+
+<!-- ============ ARCHITECTURE ============ -->
+<section class="page">
+  <h2>1 · System architecture</h2><div class="sub">Three lanes: who can see what, where the evidence lives encrypted, and what is committed publicly.</div>
+  <div class="lane"><div class="t">Users (browser)</div>
+    <div class="grid g4" style="grid-template-columns:repeat(7,1fr)">
+      <div class="box">Police<br><small>FIR, statements</small></div><div class="box">Forensic lab<br><small>lab reports</small></div><div class="box">Prosecutor<br><small>charge sheet</small></div><div class="box">Judge / Admin<br><small>review, grant, audit</small></div><div class="box">Defence advocate<br><small>court-granted copies</small></div><div class="box">Complainant<br><small>progress only</small></div><div class="box">Public verifier<br><small>opt-in receipt</small></div></div></div>
+  <div class="arrow">▼ HTTPS</div>
+  <div class="lane aws"><div class="t">AWS — access &amp; application</div>
+    <div class="grid g4">
+      <div class="box">CloudFront<br><small>HTTPS front door</small></div><div class="box">EC2 · Next.js 16<br><small>UI + API routes (Node)</small></div><div class="box">Amazon Cognito<br><small>sign-in, JWT</small></div><div class="box app">Policy engine<br><small>RBAC + ABAC on every request</small></div></div></div>
+  <div class="arrow">▼ server-side only</div>
+  <div class="grid g3">
+    <div class="lane app"><div class="t">Backend crypto engine (Node.js)</div>
+      <div class="box">AES-256-GCM per 64 KiB part</div><div class="box">ML-KEM-768 + HKDF-SHA256: wraps the file key</div><div class="box">ML-DSA-65: signs documents, batches, audit</div><div class="box">SHA-256 chunk &amp; batch Merkle trees</div><div class="box">Hash-chained audit log</div></div>
+    <div class="lane aws"><div class="t">AWS — data &amp; keys</div>
+      <div class="box"><b>RDS PostgreSQL 17 + pgvector</b>cases, documents, audit, requests · Row-Level Security (<code>app.user_id</code>)</div>
+      <div class="box"><b>S3 + Object Lock + versioning</b>ciphertext parts stored by hash (SSE-KMS)</div>
+      <div class="box"><b>AWS KMS</b>protects PQ seeds; optional ML-DSA signer</div>
+      <div class="box">EventBridge scans · CloudTrail key-use log · Bedrock assistant (bonus)</div></div>
+    <div class="lane chain"><div class="t">Polygon (audit &amp; coordination layer)</div>
+      <div class="box"><b>SakshyaRegistry</b> (Solidity)<br>record hashes, verifier attestations, audit-event chains, case-folder manifests, batch roots</div>
+      <div class="box">Stores <u>only hashes and addresses</u> — never documents, keys or signatures</div>
+      <div class="box">Chain: <span class="pill local">local dev chain now</span> → Polygon Amoy (80002) when funded</div></div>
+  </div>
+  <div class="note"><b>Key idea:</b> Polygon is the notary, not the vault. Encryption and post-quantum cryptography run in our backend; the chain publicly timestamps hashes so later edits are provable.</div>
+</section>
+
+<!-- ============ UPLOAD WORKFLOW ============ -->
+<section class="page">
+  <h2>2 · Evidence upload workflow</h2><div class="sub">From a police officer's upload to a sealed, signed, audited and chain-committed record.</div>
+  <div class="grid g2" style="grid-template-columns:1.25fr 1fr">
+  <div>
+    <div class="step"><div class="n">1</div><div class="box"><b>Authenticate &amp; authorise</b>Cognito JWT verified. Policy engine checks role, case assignment and the role→document-type matrix. RDS row-level security repeats the check in the database. A refusal is logged as <b>DENIED</b>.</div></div>
+    <div class="step"><div class="n">2</div><div class="box"><b>Validate</b>≤ 4 MiB; pdf / docx / txt / png / jpg; server recomputes everything — nothing from the client is trusted.</div></div>
+    <div class="step"><div class="n">3</div><div class="box"><b>Fingerprint plaintext</b>SHA-256 of the file; 4 KiB chunk Merkle tree → <code>chunkRoot</code> + chunk leaf list.</div></div>
+    <div class="step"><div class="n">4</div><div class="box"><b>Encrypt in parts</b>Random 256-bit key (DEK). File split into 64 KiB parts; each part AES-256-GCM encrypted (AAD = docId|index|count). Part address = SHA-256 of the stored bytes.</div></div>
+    <div class="step"><div class="n">5</div><div class="box"><b>Wrap the key (post-quantum)</b>ML-KEM-768 encapsulation → HKDF-SHA256 → key-encryption key → AES-GCM wraps the DEK. Only the wrapped key is stored.</div></div>
+    <div class="step"><div class="n">6</div><div class="box"><b>Sign</b>Uploader's ML-DSA-65 key signs the canonical JSON {docId, caseId, type, version, sha256, chunkRoot, partRoot, timestamp}.</div></div>
+    <div class="step"><div class="n">7</div><div class="box"><b>Store</b>Ciphertext parts → S3 (by hash). Metadata, wrapped key, signature → RDS (append-only). Plaintext never touches disk or DB.</div></div>
+    <div class="step"><div class="n">8</div><div class="box"><b>Record</b>Audit entry (with <b>legal basis</b>) hash-chained; case manifest version +1; record registered on the chain registry.</div></div>
+  </div>
+  <div>
+    <div class="box ok"><b>Receipt shown to the user</b>plaintext SHA-256 · AES-256-GCM ✔ · ML-KEM-768 ✔ · ML-DSA-65 signature ✔ · audit entry ID · status <i>UNANCHORED → PENDING_ANCHOR → VERIFIED</i></div>
+    <h3>What is stored where</h3>
+    <table><tr><th>Item</th><th>Where</th></tr>
+    <tr><td>Encrypted parts</td><td>S3 (key = SHA-256 of part)</td></tr>
+    <tr><td>Wrapped file key, IVs</td><td>RDS</td></tr>
+    <tr><td>Hashes, chunk leaves, signature</td><td>RDS</td></tr>
+    <tr><td>Audit chain</td><td>RDS + hash on chain</td></tr>
+    <tr><td>Document / manifest / batch hashes</td><td>Polygon registry</td></tr>
+    <tr><td>Plaintext, private keys</td><td><b>Nowhere</b> (memory only)</td></tr></table>
+    <div class="note">Corrections never overwrite: a new version is appended with <code>parentId</code>, and the registry enforces <code>version &gt; parent.version</code>.</div>
+  </div></div>
+</section>
+
+<!-- ============ VERIFICATION ============ -->
+<section class="page">
+  <h2>3 · Verification &amp; tamper detection</h2><div class="sub">Runs on every view, on demand, and in integrity scans. Six independent checks; green only when all pass.</div>
+  <div class="grid g3">
+    <div class="box"><b>① Parts present &amp; unaltered</b>Fetch each part; SHA-256(bytes) must equal its address. An edited part is named without decrypting: <i>"part 2 altered"</i>.</div>
+    <div class="box"><b>② Authenticated decryption</b>Unwrap key (ML-KEM-768), AES-256-GCM decrypt each part. Swapped, reordered or cross-document parts fail.</div>
+    <div class="box"><b>③ Plaintext SHA-256</b>Recompute and compare with the signed original.</div>
+    <div class="box"><b>④ Chunk Merkle root</b>Diff 4 KiB chunk hashes → <b>exact chunk + byte range</b>, e.g. <i>chunk 2, bytes 8192–12287</i>.</div>
+    <div class="box"><b>⑤ ML-DSA-65 signature</b>Verified <u>off-chain</u> by our backend verifier; verdict + evidence hash attested on chain.</div>
+    <div class="box"><b>⑥ Batch proof &amp; on-chain root</b>Document leaf ∈ batch root; batch root equals the root stored on the chain.</div>
+  </div>
+  <h3>Insider-attack scenario (demo centrepiece)</h3>
+  <div class="grid g4" style="grid-template-columns:1fr 24px 1fr 24px 1fr 24px 1fr">
+    <div class="box bad"><b>Attack</b>Insider with key access decrypts, flips <u>one plaintext byte</u> (offset 9000), re-encrypts validly, overwrites the stored object.</div><div class="arrow" style="align-self:center">▶</div>
+    <div class="box warn"><b>Why decryption passes</b>GCM is valid for the new bytes, so "can it be opened?" says yes. This is why decryption alone is not enough.</div><div class="arrow" style="align-self:center">▶</div>
+    <div class="box bad"><b>Detection</b>SHA-256 ≠ signed hash · chunk root ≠ original · part address ≠ stored. <b>Chunk 2, bytes 8192–12287</b>. Last accessors listed (context, not proof of guilt).</div><div class="arrow" style="align-self:center">▶</div>
+    <div class="box ok"><b>Recovery</b>S3 Object Lock kept the original version. Authorised restore appends a <u>new signed version</u>; the damaged one stays on record in red.</div>
+  </div>
+  <table style="margin-top:10px"><tr><th>Status</th><th>Meaning</th><th>Colour</th></tr>
+  <tr><td>VERIFIED</td><td>all six checks pass</td><td style="color:var(--ok)"><b>green</b></td></tr>
+  <tr><td>TAMPERED</td><td>a content / hash / part check failed; ranges reported</td><td style="color:var(--bad)"><b>red</b></td></tr>
+  <tr><td>PENDING_ANCHOR</td><td>content checks pass; batch not yet confirmed on chain</td><td style="color:var(--warn)"><b>amber</b></td></tr>
+  <tr><td>UNANCHORED / ERROR</td><td>not committed yet / could not verify — never shown as green</td><td>grey / red</td></tr></table>
+</section>
+
+<!-- ============ FOLDER ============ -->
+<section class="page">
+  <h2>4 · Case folder, parts &amp; court assembly</h2><div class="sub">One FIR = one case folder. Every document is stored as encrypted parts; the court rebuilds and verifies the whole folder.</div>
+  <div class="grid g2">
+    <div>
+      <div class="box app"><b>Case folder (FIR NSK/2026/0142)</b>
+        <div class="grid g3" style="margin-top:6px"><div class="box">FIR<br><small>police</small></div><div class="box">Witness statement<br><small>police</small></div><div class="box">Forensic report<br><small>lab</small></div></div></div>
+      <div class="arrow">▼ each document</div>
+      <div class="box"><b>Document → parts</b><div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap"><span class="pill built">part 0 · a41f…</span><span class="pill built">part 1 · 7c02…</span><span class="pill built">part 2 · e9b8…</span><span class="pill built">part 3 · 03dd…</span></div><small>64 KiB each · AES-256-GCM · filed under its own SHA-256</small></div>
+      <div class="arrow">▼ leaves</div>
+      <div class="box chain"><b>Case manifest</b>Merkle root over every document leaf (id + file hash + chunk root + part root). Each new document seals <b>manifest version n+1</b> on the chain; versions only grow.</div>
+    </div>
+    <div>
+      <h3>"Assemble case folder" (court / prosecutor)</h3>
+      <div class="step"><div class="n">1</div><div class="box">Policy check; advocates only get documents granted to them.</div></div>
+      <div class="step"><div class="n">2</div><div class="box">Fetch every part by hash; verify address.</div></div>
+      <div class="step"><div class="n">3</div><div class="box">Decrypt, rebuild each document, verify hash / chunks / signature.</div></div>
+      <div class="step"><div class="n">4</div><div class="box">Recompute the manifest root; compare with the on-chain root.</div></div>
+      <div class="step"><div class="n">5</div><div class="box ok">Live progress "<b>38/42 parts verified</b>" → ZIP bundle (files + manifest.json + hash certificate) <u>only if everything is VERIFIED</u>. Audited as FOLDER_ASSEMBLED.</div></div>
+      <div class="note">Splitting <u>per document</u> (not the whole folder as one blob) keeps access granular and lets new evidence be added later.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COURT REQUEST ============ -->
+<section class="page">
+  <h2>5 · Court request workflow &amp; complainant progress</h2><div class="sub">Advocates obtain documents only through a judge's order; everything — who asked, who decided, who looked — is recorded with its legal basis.</div>
+  <div class="grid g5">
+    <div class="box"><b>1 · Advocate files</b>documents wanted, legal basis + citation, reason → <i>REQUEST_FILED</i></div>
+    <div class="box"><b>2 · Judge reviews</b>sees the request, case and documents</div>
+    <div class="box warn"><b>3 · Decision</b>Grant (all or subset, optional expiry) with <b>order reference + note</b>, or Reject → <i>REQUEST_GRANTED / REJECTED</i></div>
+    <div class="box ok"><b>4 · Access</b>View + <b>watermarked</b> download (advocate, order ref, hash, time); every access audited with <i>COURT_ORDER</i></div>
+    <div class="box"><b>5 · Expiry</b>Access ends at expiry; the full trail remains</div>
+  </div>
+  <div class="grid g2" style="margin-top:10px">
+    <div><h3>Every audit entry records</h3><div class="box">who (pseudonymous on chain) · what action · which document / case · when · <b>legal basis</b> {code, citation, order ref} · previous hash → entry hash (chain). The legal basis is inside the hash, so the reason cannot be edited later.</div>
+      <h3>Legal basis codes</h3><div class="box"><small>INVESTIGATION · FORENSIC_ASSIGNMENT · PROSECUTION_ASSIGNMENT · JUDICIAL_AUTHORITY · COURT_ORDER · STATUTORY_DISCLOSURE · VICTIM_INFORMATION · SYSTEM_INTEGRITY</small></div>
+      <div class="note">Citations are entered by the judge / advocate and stored verbatim. The system records the basis; it does not interpret law. Statute section numbers should be confirmed with legal counsel before being quoted.</div></div>
+    <div><h3>Complainant progress view</h3>
+      <div class="box"><div style="display:flex;gap:4px;flex-wrap:wrap"><span class="pill built">FIR registered</span><span class="pill built">Investigation</span><span class="pill local">Forensic analysis</span><span class="pill planned">Charge sheet</span><span class="pill planned">Trial</span><span class="pill planned">Judgment</span></div>
+      <small>Milestones are added by the investigating officer or the court (audited). The complainant sees dates and public-safe notes <u>only</u> — no documents, hashes of evidence, or other parties.</small></div></div>
+  </div>
+</section>
+
+<!-- ============ ROLES ============ -->
+<section class="page">
+  <h2>6 · Roles &amp; access control (RBAC + ABAC)</h2><div class="sub">Enforced twice: in the API policy layer and again inside the database by row-level security. Denials are logged.</div>
+  <table><tr><th>Role</th><th>Can upload</th><th>Can read</th><th>Other powers</th><th>Cannot</th></tr>
+  <tr><td>POLICE</td><td>FIR, witness statements (own cases)</td><td>own cases</td><td>create case, add milestones</td><td>edit/delete, other stations' cases</td></tr>
+  <tr><td>FORENSIC_LAB</td><td>forensic reports (assigned)</td><td>assigned cases</td><td>—</td><td>unassigned cases (DENIED + logged)</td></tr>
+  <tr><td>PUBLIC_PROSECUTOR</td><td>charge sheets (assigned)</td><td>full assigned case file</td><td>assemble folder</td><td>edit evidence</td></tr>
+  <tr><td>JUDGE</td><td>—</td><td>all cases (read-only)</td><td>grant/reject requests, run scans, audit views</td><td>modify evidence</td></tr>
+  <tr><td>ADMIN</td><td>—</td><td>all cases (read-only)</td><td>audit chain, scans, batches</td><td>modify evidence, decide requests</td></tr>
+  <tr><td>DEFENCE_ADVOCATE</td><td>—</td><td><b>only granted documents</b>, until expiry</td><td>file document requests</td><td>anything without a court order</td></tr>
+  <tr><td>COMPLAINANT</td><td>—</td><td>own case <b>milestones only</b></td><td>—</td><td>see documents or hashes</td></tr></table>
+  <h3>ABAC attributes</h3><div class="grid g4"><div class="box">case assignment</div><div class="box">police station / jurisdiction</div><div class="box">document type</div><div class="box">active court grant + expiry</div></div>
+  <div class="note"><b>Append-only everywhere:</b> no edit or delete in the UI, API or database (triggers block UPDATE/DELETE on documents and audit; the chain registry is write-once per record). Zero-trust: every request is re-authenticated and re-authorised.</div>
+</section>
+
+<!-- ============ DATA MODEL ============ -->
+<section class="page">
+  <h2>7 · Data model (RDS PostgreSQL)</h2><div class="sub">Core tables; <code>FORCE ROW LEVEL SECURITY</code> with policies keyed on <code>current_setting('app.user_id')</code>.</div>
+  <div class="grid g4">
+    <div class="box"><b>users</b>id (Cognito sub) · name · role · station · clearance · ML-DSA public key hash</div>
+    <div class="box"><b>cases</b>id · fir_no · station · stage · status · created_by</div>
+    <div class="box"><b>case_assignments</b>case_id · user_id · role</div>
+    <div class="box"><b>milestones</b>case_id · stage · note · recorded_by · at</div>
+    <div class="box app"><b>documents</b>id · case_id · type · version · parent_id · sha256 · chunk_root · chunk_leaves · part_root · wrapped_dek · signature · batch_id · merkle_proof</div>
+    <div class="box app"><b>document_parts</b>doc_id · index · address (sha256) · size</div>
+    <div class="box app"><b>case_manifests</b>case_id · version · root · doc_count · tx</div>
+    <div class="box"><b>merkle_batches</b>id · root · signature · tx_hash · status</div>
+    <div class="box warn"><b>document_requests</b>id · case_id · requester · documents · legal_basis · status</div>
+    <div class="box warn"><b>request_grants</b>request_id · document_id · order_ref · expires_at</div>
+    <div class="box bad"><b>audit_log</b>id · actor · action · doc/case · legal_basis · prev_hash · entry_hash · at</div>
+    <div class="box"><b>doc_embeddings</b>(bonus) chunk text · vector(1024) · case_id</div>
+  </div>
+  <h3>On-chain (SakshyaRegistry)</h3>
+  <div class="grid g5"><div class="box chain"><small>registerRecord<br>(write-once, versions)</small></div><div class="box chain"><small>attestSignature<br>(off-chain verdict + evidence hash)</small></div><div class="box chain"><small>logAuditEvent<br>(per-document / per-case hash chain)</small></div><div class="box chain"><small>sealCaseManifest<br>(folder versions 1,2,3…)</small></div><div class="box chain"><small>anchorBatch<br>(Merkle batch roots)</small></div></div>
+  <div class="foot">Roles on the contract: RECORDER (backend), VERIFIER (off-chain ML-DSA verifier), PAUSER/ADMIN. Pseudonymous actor hashes only; no plaintext, keys or signatures on chain.</div>
+</section>
+
+<!-- ============ TRUST & STATUS ============ -->
+<section class="page">
+  <h2>8 · Trust boundaries &amp; honest status</h2>
+  <div class="grid g2">
+    <div>
+      <h3>What the system proves — and what it does not</h3>
+      <table><tr><th>Claim</th><th>Basis</th></tr>
+      <tr><td>A record existed unchanged at time T</td><td>hash committed on chain at T</td></tr>
+      <tr><td>Content was altered (and where)</td><td>hash / chunk / part mismatch</td></tr>
+      <tr><td>Who accessed it, and why</td><td>hash-chained audit with legal basis</td></tr>
+      <tr><td>The ML-DSA signature is valid</td><td><b>Our backend verifier</b> checked it; the chain stores its attestation. <u>The blockchain does not verify post-quantum signatures.</u> Anyone can re-verify from the stored signature and key hashes.</td></tr>
+      <tr><td>Recent accessors are guilty</td><td><b>Not claimed</b> — context only</td></tr></table>
+      <div class="note"><b>Post-quantum scope:</b> ML-KEM-768 protects document-key wrapping and ML-DSA-65 signs commitments. Polygon's own consensus and transaction signatures are <u>not</u> quantum-safe. Trust dependencies: the backend verifier and the protection of signing / decryption keys (KMS).</div>
+    </div>
+    <div>
+      <h3>Build status (9 Oct 2026)</h3>
+      <table><tr><th>Component</th><th>Status</th></tr>
+      <tr><td>Crypto: ML-KEM / ML-DSA / AES-GCM / parts</td><td><span class="pill built">built · 23 tests pass</span></td></tr>
+      <tr><td>Merkle trees, tamper localisation</td><td><span class="pill built">built · tested</span></td></tr>
+      <tr><td>Content-addressed part store (local folder)</td><td><span class="pill built">built</span> <span class="pill local">S3 next</span></td></tr>
+      <tr><td>Registry contract + scripts</td><td><span class="pill built">built · 32 tests pass</span></td></tr>
+      <tr><td>Chain used in demo</td><td><span class="pill local">local dev chain (31337)</span></td></tr>
+      <tr><td>Polygon Amoy deployment</td><td><span class="pill planned">pending test POL</span></td></tr>
+      <tr><td>UI (mock data)</td><td><span class="pill built">built</span> <span class="pill planned">light redesign in progress</span></td></tr>
+      <tr><td>Database schema + RLS, API routes, audit</td><td><span class="pill planned">next</span></td></tr>
+      <tr><td>AWS: KMS, S3, RDS, Cognito, EC2 + CloudFront</td><td><span class="pill planned">pending AWS account setup</span></td></tr>
+      <tr><td>Bedrock assistant, EventBridge scans</td><td><span class="pill planned">bonus</span></td></tr></table>
+      <div class="foot">"Built" = implemented and tested locally. Nothing in this document claims a live AWS deployment or a Polygon public-network deployment yet.</div>
+    </div>
+  </div>
+</section>
+</body></html>

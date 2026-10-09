@@ -1,0 +1,7 @@
+case_ref,station_code,stage,complainant_email,doc_type,file
+C01,GNG,INVESTIGATION,,FIR,C01/FIR.pdf
+C01,GNG,INVESTIGATION,,WITNESS_STATEMENT,C01/Witness_1.pdf
+C02,PCV,CHARGE_SHEET_FILED,complainant@sakshya.demo,FIR,C02/FIR.pdf
+C02,PCV,CHARGE_SHEET_FILED,complainant@sakshya.demo,WITNESS_STATEMENT,C02/Witness_1.pdf
+C02,PCV,CHARGE_SHEET_FILED,complainant@sakshya.demo,FORENSIC_REPORT,C02/Forensic_Report.pdf
+C02,PCV,CHARGE_SHEET_FILED,complainant@sakshya.demo,CHARGE_SHEET,C02/Charge_Sheet.pdf
