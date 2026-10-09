@@ -10,6 +10,7 @@ import { getChain } from "./chain";
 import { explorerFor } from "./chain-feed";
 import { getDb, type Row, type Tx } from "./db";
 import { forbidden, invalid, notFound, requireRows } from "./errors";
+import { uploadDocument, type EvidenceDeps } from "./evidence";
 import { pageOf, type PageArgs } from "./http";
 import { canAddMilestone, isCourt } from "./policy";
 import type { SessionUser } from "./session";
@@ -97,7 +98,7 @@ export async function getCaseDetail(user: SessionUser, caseId: string): Promise<
 }
 
 // ───────────────────────────── registration (the FIR number is assigned by the database, never typed)
-export async function createCase(user: SessionUser, complainantEmail?: string): Promise<CaseDetail> {
+export async function createCase(user: SessionUser, complainantEmail?: string, firText?: string, deps?: EvidenceDeps): Promise<CaseDetail> {
   if (user.role !== "POLICE") { await logDenied(user.id, "case registration refused: only POLICE may register a case"); throw forbidden("Only police may register a case"); }
   const db = await getDb();
   const caseId = await db.withUser(user.id, async (tx) => {
@@ -111,6 +112,10 @@ export async function createCase(user: SessionUser, complainantEmail?: string): 
     await writeAudit(tx, { actorId: user.id, action: "MILESTONE_ADDED", caseId: row[0].case_id, basis: defaultBasis(user.role), detail: `FIR registered: ${row[0].fir_no}` });
     return row[0].case_id;
   });
+  if (firText) {
+    // the written FIR becomes the case's first document, through the normal upload path (encrypted in parts, signed, audited, anchored)
+    await uploadDocument(user, { caseId, type: "FIR", filename: "FIR.txt", mimeType: "text/plain", bytes: Buffer.from(firText, "utf8") }, deps);
+  }
   return getCaseDetail(user, caseId);
 }
 

@@ -188,7 +188,14 @@ export interface CaseSummary {
  * SERIAL is gapless per station and year; CODE is a verification code derived from a hash-chained FIR register, so a
  * forged or edited number cannot validate. The officer never types or edits it. Station comes from the signed-in officer.
  */
-export interface CreateCaseRequest { complainantEmail?: string }
+export interface CreateCaseRequest {
+  complainantEmail?: string;
+  /**
+   * The FIR as written by the officer (plain text, max 20,000 characters). When present the server registers the case AND stores the text as the
+   * case's first document (type FIR, file "FIR.txt"), encrypted and signed like any upload — so an officer can write a FIR in the browser.
+   */
+  firText?: string;
+}
 /** Pattern for display / input validation of an FIR number. */
 export const FIR_NUMBER_PATTERN = /^[A-Z]{2,4}\/\d{4}\/\d{4}\/[0-9A-F]{4}$/;
 export interface FirCheck { firNo: string; genuine: boolean; stationCode: string | null; issuedAt: ISODate | null }

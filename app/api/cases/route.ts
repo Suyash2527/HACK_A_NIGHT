@@ -10,5 +10,6 @@ export const GET = authed(async (request, user) => {
 
 export const POST = authed(async (request, user) => {
   const body = request.headers.get("content-length") === "0" ? {} : await jsonBody(request);
-  return createCase(user, optStr(body.complainantEmail, "complainantEmail", 200));
+  const firText = optStr(body.firText, "firText", 20_000);
+  return createCase(user, optStr(body.complainantEmail, "complainantEmail", 200), firText);
 });

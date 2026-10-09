@@ -188,3 +188,17 @@ describe("chain routes without a configured chain", () => {
     assert.equal((await call(txGet, "GET", { as: judge, query: { docId: "nope" } })).status, 422);
   });
 });
+
+describe("FIR written in the browser", () => {
+  it("an officer can write the FIR in the browser: the text becomes the case's first document", async () => {
+    const r = await call(casesPost, "POST", { as: police, body: { firText: "On 9 Oct 2026 the complainant reported the theft of a motorcycle from Gangapur Road." } });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.documentCount, 1);
+    const docs = await call(docsGet, "GET", { as: police, query: { caseId: r.json.id } });
+    assert.equal(docs.json.items[0].type, "FIR");
+    assert.equal(docs.json.items[0].filename, "FIR.txt");
+    const body = await call(contentGet, "GET", { as: police, params: { id: docs.json.items[0].id } });
+    assert.match(Buffer.from(await body.res.arrayBuffer()).toString(), /theft of a motorcycle/);
+    assert.equal((await call(casesPost, "POST", { as: police, body: { firText: "x".repeat(20_001) } })).status, 422);
+  });
+});
