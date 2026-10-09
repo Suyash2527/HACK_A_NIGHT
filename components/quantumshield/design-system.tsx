@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatIST } from "./format";
 export function CopyableHash({ value, label = "Hash" }: {
     value: string | null;
@@ -111,3 +112,5 @@ export function DataTable<T>({ rows, columns, rowKey, searchText, resetKey = "",
     const current = Math.min(page, count - 1);
     return <div className="min-w-0"><div className="no-print relative mb-4 max-w-sm"><Search className="absolute left-3 top-3.5 size-4 text-muted-foreground"/><Input aria-label={searchLabel} placeholder={searchLabel} value={query} onChange={e => { setQuery(e.target.value); setPage(0); }} className="pl-9"/></div>{filtered.length ? <Table><TableHeader><TableRow>{columns.map(c => <TableHead key={c.key} aria-sort={sort?.key === c.key ? (sort.asc ? "ascending" : "descending") : undefined}>{c.sort ? <button className="flex min-h-8 items-center gap-1 text-left" onClick={() => setSort({ key: c.key, asc: sort?.key === c.key ? !sort.asc : true })}>{c.label}<ArrowDownUp className="size-3"/></button> : c.label}</TableHead>)}</TableRow></TableHeader><TableBody>{filtered.slice(current * 20, current * 20 + 20).map(r => <TableRow key={rowKey(r)}>{columns.map(c => <TableCell key={c.key}>{c.render(r)}</TableCell>)}</TableRow>)}</TableBody></Table> : <EmptyState title={empty} description="Clear the search or select a different status to see your permitted records." action={<Button variant="outline" onClick={() => setQuery("")}>Clear search</Button>}/>}<div className="no-print mt-4 flex items-center justify-between border-t pt-3 text-xs text-muted-foreground"><span>{filtered.length} records · Page {current + 1} of {count}</span><div className="flex gap-1"><Button aria-label="Previous page" size="icon-sm" variant="outline" disabled={current === 0} onClick={() => setPage(current - 1)}><ChevronLeft /></Button><Button aria-label="Next page" size="icon-sm" variant="outline" disabled={current + 1 >= count} onClick={() => setPage(current + 1)}><ChevronRight /></Button></div></div></div>;
 }
+
+export function ExplainTerm({ term, meaning }: { term: string; meaning: string }) { return <TooltipProvider><Tooltip><TooltipTrigger asChild><button type="button" className="text-left text-xs underline decoration-dotted underline-offset-4" aria-label={term + ". " + meaning}>{term}</button></TooltipTrigger><TooltipContent>{meaning}</TooltipContent></Tooltip></TooltipProvider>; }

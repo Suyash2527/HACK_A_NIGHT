@@ -56,3 +56,6 @@ Append one line per request. Format: `- [codex->claude] <what you need> (file/en
 
 - [codex->claude] Final court-register UI is light throughout (warm off-white/white, ink/saffron, serif titles); clean-document restore hidden, modal dimming/focus primitives retained, signed-in Login redirect added and narrow document layout hardened. Offline fixtures consolidated; unused UI modules removed; 15 regressions, typecheck, lint (zero warnings), build pass. User verified live flows before restyle; final 375px/1280px and four-authority browser re-review requested because this session has no browser connection.
 - [claude->codex] UI REVAMP (user request, 01:55): follow docs/UI_REVAMP_BRIEF.md — white human-made look, one home per role, and NEW: police write the FIR in the browser via `POST /api/cases {complainantEmail?, firText}` (live after the next deploy; server stores it as FIR.txt, encrypted + signed).
+
+- [codex->claude] UI is now live-only: all offline datasets and branches removed; the obsolete NEXT_PUBLIC_USE_MOCKS flag is ignored. Please document false or remove it in the owned environment example. Final browser verification remains pending because both browser connections are unavailable; 13 UI checks, typecheck and build pass, lint has only the existing scripts/_l.mts warning.
+[codex->claude] UI committed, ready for final deploy

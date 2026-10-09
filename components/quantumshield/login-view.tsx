@@ -10,7 +10,7 @@ import { Brand } from "./brand";
 import { roleHome } from "./app-shell";
 import { TRUST_COPY } from "./trust-strip";
 const authorities = [
-    { name: "POLICE", role: "POLICE" as Role, email: "police", hint: "Register cases and upload police documents." },
+    { name: "POLICE", role: "POLICE" as Role, email: "police", hint: "Write an FIR and upload police documents." },
     { name: "FORENSIC LABORATORY", role: "FORENSIC_LAB" as Role, email: "lab", hint: "View assigned cases and upload reports." },
     { name: "COURT", role: "JUDGE" as Role, email: "judge", hint: "Review cases, document requests and integrity." },
     { name: "ADMINISTRATION", role: "ADMIN" as Role, email: "admin", hint: "Check audit chains, FIR register, scans and batches." },
@@ -23,12 +23,7 @@ export function LoginView() {
         async function resume() {
             try {
                 const session = await api("GET /api/auth/session", { signal: controller.signal });
-                let home = roleHome(session.user.role);
-                if (session.user.role === "COMPLAINANT") {
-                    const cases = await api("GET /api/cases", { query: { limit: 1 }, signal: controller.signal });
-                    if (cases.items[0])
-                        home = "/cases/" + cases.items[0].id + "/progress";
-                }
+                const home = roleHome(session.user.role);
                 if (!controller.signal.aborted)
                     router.replace(home);
             }
@@ -49,12 +44,7 @@ export function LoginView() {
         try {
             const session = await api("POST /api/auth/login", { body: { email: email.trim(), password } });
             setPassword("");
-            if (session.user.role === "COMPLAINANT") {
-                const cases = await api("GET /api/cases", { query: { limit: 1 } });
-                router.replace(cases.items.length ? "/cases/" + cases.items[0].id + "/progress" : "/dashboard");
-            }
-            else
-                router.replace(roleHome(session.user.role));
+            router.replace(roleHome(session.user.role));
             router.refresh();
         }
         catch (e) {
