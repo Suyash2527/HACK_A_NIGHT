@@ -88,15 +88,20 @@ export async function assembleCase(user: SessionUser, caseId: string, deps?: Evi
   };
 
   // 5. bundle only when everything is VERIFIED (and the folder matches what was sealed)
-  const allVerified = documents.every((d) => d.verification.status === "VERIFIED");
+  // A damaged version that a restore has superseded stays visible in the report (incident history) but is not part of the bundle:
+  // the bundle holds the CURRENT version of every document, and every one of those must be VERIFIED.
+  const superseded = new Set(prep.docs.map((d) => d.row.parent_id as string | null).filter((x): x is string => !!x));
+  const isCurrent = (id: string) => !superseded.has(id);
+  const allVerified = documents.filter((d) => isCurrent(d.document.id)).every((d) => d.verification.status === "VERIFIED");
   const folderOk = !manifest || (manifest.root === manifest.recomputed && manifest.onChain !== "fail");
   let bundle: AssemblyReport["bundle"] = null;
-  if (allVerified && folderOk && fitsInMemory && outs.every((o) => o.plaintext)) {
+  if (allVerified && folderOk && fitsInMemory && prep.docs.every((d, i) => !isCurrent(d.row.id) || outs[i].plaintext)) {
     const at = new Date();
     const entries: ZipEntry[] = [];
     const listing: Record<string, unknown>[] = [];
     for (let i = 0; i < prep.docs.length; i++) {
       const row = prep.docs[i].row;
+      if (!isCurrent(row.id)) continue;
       let data = outs[i].plaintext!, name = row.filename as string, mark: string | null = null;
       if (advocate) {
         const b = await db.withUser(user.id, (tx) => basisFor(tx, user, row.id));
@@ -108,14 +113,16 @@ export async function assembleCase(user: SessionUser, caseId: string, deps?: Evi
       listing.push({ file: entryName, docId: row.id, type: row.type, version: row.version, sha256: row.sha256, chunkRoot: row.chunk_root, partRoot: row.part_root,
         signer: row.uploader_name, signerKeyHash: row.signer_key_hash, batchId: row.batch_id === null ? null : Number(row.batch_id), anchorTx: row.anchor_tx ?? null, watermark: mark });
     }
-    const manifestJson = JSON.stringify({ firNo: prep.firNo, caseId, assembledAt: at.toISOString(), assembledBy: user.name, scope: advocate ? "GRANTED_DOCUMENTS" : "FULL_CASE", manifest, documents: listing }, null, 2);
+    const history = prep.docs.filter((d) => !isCurrent(d.row.id)).map((d) => ({ docId: d.row.id, version: d.row.version, sha256: d.row.sha256, note: "superseded by a later version; not included in this bundle" }));
+    const manifestJson = JSON.stringify({ firNo: prep.firNo, caseId, assembledAt: at.toISOString(), assembledBy: user.name, scope: advocate ? "GRANTED_DOCUMENTS" : "FULL_CASE", manifest, documents: listing, supersededVersions: history }, null, 2);
     const cert = [
       "SAKSHYA — CASE FOLDER HASH CERTIFICATE", `FIR: ${prep.firNo}`, `Assembled: ${at.toISOString()} by ${user.name}`, "",
-      `Every one of the ${documents.length} document(s) below was decrypted and re-checked at the moment of assembly:`,
+      `Every one of the ${listing.length} current document(s) below was decrypted and re-checked at the moment of assembly:`,
       "  - AES-256-GCM authenticated decryption of every stored part", "  - SHA-256 of the content and the 4 KiB chunk Merkle root against the signed original",
       "  - ML-DSA-65 signature, verified OFF-CHAIN by the Sakshya backend", "  - Merkle proof into an anchored batch whose root matches the root stored on the blockchain", "",
       "The blockchain stores hashes and the verifier's attestation; it does not itself verify post-quantum signatures.",
       manifest ? `Folder manifest v${manifest.version}: ${manifest.root} (recomputed ${manifest.recomputed}; on-chain check: ${manifest.onChain})` : "Folder manifest: not included for granted-document bundles.",
+      history.length ? `${history.length} superseded version(s) are listed in manifest.json for the record and are not included as files.` : "",
       advocate ? "Granted copy: plain-text files carry a watermark inside the file; PDF/Word/image files are byte-identical and are marked by file name only." : "", "",
       ...listing.map((l) => `${l.file}\n  sha256 ${l.sha256}`),
     ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n");

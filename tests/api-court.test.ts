@@ -6,6 +6,7 @@ import { POST as assemblePost } from "../app/api/cases/[id]/assemble/route";
 import { GET as bundleGet } from "../app/api/cases/[id]/bundle/route";
 import { POST as docsPost } from "../app/api/documents/route";
 import { GET as docGet } from "../app/api/documents/[id]/route";
+import { POST as restorePost } from "../app/api/documents/[id]/restore/route";
 import { GET as contentGet } from "../app/api/documents/[id]/content/route";
 import { GET as requestsGet, POST as requestsPost } from "../app/api/requests/route";
 import { GET as catalogGet } from "../app/api/requests/catalog/route";
@@ -225,5 +226,22 @@ describe("case folder assembly", () => {
     assert.equal(doc.verification.tamperRanges[0].chunkIndex, 0);
     const acts = (await call(auditGet, "GET", { as: judge, query: { caseId, limit: "300" } })).json.items.map((e: { action: string }) => e.action);
     assert.ok(acts.includes("FOLDER_ASSEMBLED") && acts.includes("TAMPER_DETECTED"));
+  });
+
+  it("after a restore the superseded damaged version stays in the report but the bundle holds only current, verified documents", async () => {
+    chain.registry.manifests.clear(); // chain state is not what this test is about
+    const rest = await call(restorePost, "POST", { as: police, params: { id: stmt }, body: { reason: "Restore retained original after incident" } });
+    assert.equal(rest.status, 201);
+    assert.ok(await anchorPending({ chainService: chain.service }));
+    const r = await call(assemblePost, "POST", { as: judge, params: { id: caseId } });
+    assert.equal(r.json.totals.documents, 4);
+    assert.equal(r.json.totals.tampered, 1, "history of the incident is reported");
+    assert.ok(r.json.bundle, "current versions are all VERIFIED");
+    const token = new URL(r.json.bundle.downloadPath, "http://x").searchParams.get("token")!;
+    const files = readZip(Buffer.from(await (await call(bundleGet, "GET", { as: judge, params: { id: caseId }, query: { token } })).res.arrayBuffer()));
+    const names = files.map((f) => f.name).filter((n) => n.startsWith("documents/"));
+    assert.equal(names.length, 3);
+    assert.ok(names.some((n) => n.includes("statement.txt") && n.includes("_v2_")) && !names.some((n) => n.includes("statement.txt") && n.includes("_v1_")));
+    assert.match(files.find((f) => f.name === "manifest.json")!.data.toString(), /supersededVersions/);
   });
 });
