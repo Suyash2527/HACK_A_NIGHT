@@ -250,6 +250,17 @@ export interface DocumentRequest {
     expiresAt: ISODate | null;
   } | null;
 }
+/**
+ * What a DEFENCE_ADVOCATE (or the court) may look up by FIR number BEFORE asking for access: identifiers and titles only —
+ * never content, hashes, custody or verification state. Needed to fill FileRequestBody.caseId / documentIds.
+ */
+export interface RequestCatalog {
+  caseId: UUID;
+  firNo: string;
+  station: string;
+  stage: CaseStage;
+  documents: { id: UUID; type: DocType; filename: string; version: number; createdAt: ISODate }[];
+}
 export interface FileRequestBody {
   caseId: UUID;
   documentIds: UUID[];
@@ -430,6 +441,8 @@ export interface ApiRoutes {
   /** ZIP download of an assembled bundle (short-lived path from AssemblyReport.bundle) */
   "GET /api/cases/[id]/bundle": Q<{ token: string }> & { res: Blob };
 
+  /** DEFENCE_ADVOCATE / JUDGE / ADMIN: look up a case's document titles by FIR number to build a request (404 when unknown) */
+  "GET /api/requests/catalog": Q<{ firNo: string }> & { res: RequestCatalog };
   /** DEFENCE_ADVOCATE files; JUDGE sees all for their cases; advocate sees own */
   "POST /api/requests": { body: FileRequestBody; res: DocumentRequest };
   "GET /api/requests": Q<{ caseId?: UUID; status?: RequestStatus }> & { res: Page<DocumentRequest> };

@@ -14,7 +14,9 @@ export class FakeRegistry implements RegistryLike {
   }
   async registerRecord() { return this.tx("registerRecord"); }
   async attestSignature() { return this.tx("attestSignature"); }
-  async sealCaseManifest() { return this.tx("sealCaseManifest"); }
+  manifests = new Map<string, { root: string; version: number }>();
+  async sealCaseManifest(caseRef: string, version: number, root: string) { this.manifests.set(caseRef, { root, version }); return this.tx("sealCaseManifest"); }
+  async getCaseManifest(caseRef: string) { return this.manifests.get(caseRef) ?? { root: `0x${"0".repeat(64)}`, version: 0 }; }
   async logAuditEvent() { return this.tx("logAuditEvent"); }
   async anchorBatch(id: number | bigint, root: string) { const t = this.tx("anchorBatch"); if (!this.failedOnce) this.batches.set(Number(id), { root, anchoredAt: 1_800_000_000 }); return t; }
   failedOnce = false;

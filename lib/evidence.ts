@@ -31,20 +31,20 @@ export const keyHash = (publicKey: Uint8Array) => sha256Hex(publicKey);
 export type ChainReader = (batchId: number) => Promise<string | null>;
 export interface EvidenceDeps { store?: PartStore; chain?: ChainReader; chainService?: ChainService | null }
 /** The blockchain service, or null when no chain is configured (every chain call is then skipped). */
-const chainOf = async (d?: EvidenceDeps): Promise<ChainService | null> => (d && "chainService" in d ? d.chainService ?? null : await getChain());
-const storeOf = (d?: EvidenceDeps) => d?.store ?? getPartStore();
+export const chainOf = async (d?: EvidenceDeps): Promise<ChainService | null> => (d && "chainService" in d ? d.chainService ?? null : await getChain());
+export const storeOf = (d?: EvidenceDeps) => d?.store ?? getPartStore();
 /** On-chain batch-root reader: injected in tests, otherwise the live chain service (undefined when no chain is configured). */
-const readerOf = async (d?: EvidenceDeps): Promise<ChainReader | undefined> => {
+export const readerOf = async (d?: EvidenceDeps): Promise<ChainReader | undefined> => {
   if (d?.chain) return d.chain;
   const c = await chainOf(d);
   return c ? (id) => c.batchRoot(id) : undefined;
 };
 
-const iso = (v: unknown) => new Date(v as string).toISOString();
+export const iso = (v: unknown) => new Date(v as string).toISOString();
 const SAFE_NAME = /[^A-Za-z0-9._ -]/g;
 export const cleanFilename = (n: string) => n.replace(SAFE_NAME, "_").replace(/^\.+/, "").slice(0, 120) || "document";
 
-const DOC_SELECT = `
+export const DOC_SELECT = `
   SELECT d.id, d.case_id, d.type, d.version, d.parent_id, d.filename, d.mime_type, d.size_bytes, d.uploader_id, d.sha256, d.chunk_root,
          d.chunk_leaves, d.part_root, d.part_count, d.wrapped_dek, d.signature, d.signed_payload, d.signer_key_hash, d.created_at,
          d.batch_id, d.merkle_proof, d.anchor_tx, u.name AS uploader_name, u.role AS uploader_role,
@@ -181,9 +181,9 @@ export async function sealManifest(tx: Tx, user: SessionUser, caseId: string, ba
 }
 
 // ───────────────────────────── verification
-interface LoadedDoc { row: Row; addresses: string[] }
+export interface LoadedDoc { row: Row; addresses: string[] }
 
-async function loadDoc(tx: Tx, docId: string): Promise<LoadedDoc> {
+export async function loadDoc(tx: Tx, docId: string): Promise<LoadedDoc> {
   const row = (await tx.query(`${DOC_SELECT} WHERE d.id = $1`, [docId])).rows[0];
   if (!row) throw notFound("Document unavailable");
   const parts = (await tx.query<{ address: string }>("SELECT address FROM document_parts WHERE doc_id = $1 ORDER BY idx", [docId])).rows;
@@ -254,7 +254,7 @@ export async function verifyLoaded(l: LoadedDoc, store: PartStore, chain?: Chain
   return { result, plaintext: opened.plaintext };
 }
 
-async function accessors(tx: Tx, docId: string): Promise<Accessor[]> {
+export async function accessors(tx: Tx, docId: string): Promise<Accessor[]> {
   const rows = (await tx.query<Row>(
     `SELECT u.name, u.role, a.action, a.at FROM audit_log a JOIN users u ON u.id = a.actor_id
       WHERE a.doc_id = $1 AND a.action IN ('UPLOAD','VIEW','DOWNLOAD','VERIFY','RESTORE') ORDER BY a.seq DESC LIMIT 6`, [docId])).rows;
@@ -339,6 +339,21 @@ export async function restoreDocument(user: SessionUser, docId: string, reason: 
 export const MAX_SCAN_DOCS = 150;
 const SCAN_CONCURRENCY = 6;
 
+export interface TamperEvent { docId: string; caseId: string; filename: string; entryHash: string; ranges: string }
+
+/**
+ * Persists one verification outcome (history row + last accessors) inside the caller's transaction. A tampered result also
+ * appends TAMPER_DETECTED to the audit log; the returned event lets the caller write it to the chain once the transaction commits.
+ */
+export async function recordVerification(tx: Tx, user: SessionUser, row: Row, result: VerifyResult, basis: LegalBasis, via: string): Promise<TamperEvent | null> {
+  result.lastAccessors = await accessors(tx, row.id);
+  await tx.query("INSERT INTO verification_results (doc_id, status, result, checked_by) VALUES ($1,$2,$3::jsonb,$4)", [row.id, result.status, JSON.stringify(result), user.id]);
+  if (result.status !== "TAMPERED") return null;
+  const where = result.tamperRanges.map((r) => `chunk ${r.chunkIndex} [${r.byteStart}-${r.byteEnd}]`).join(", ") || "part/hash mismatch";
+  const e = await writeAudit(tx, { actorId: user.id, action: "TAMPER_DETECTED", docId: row.id, caseId: row.case_id, basis, detail: `${via}: tampered: ${where}` });
+  return { docId: row.id, caseId: row.case_id, filename: row.filename, entryHash: e.entryHash, ranges: result.tamperRanges.map((r) => `chunk ${r.chunkIndex}`).join(", ") || "part mismatch" };
+}
+
 export async function runIntegrityScan(user: SessionUser, caseId?: string, deps?: EvidenceDeps): Promise<ScanDetail> {
   if (!canRunScan(user.role)) {
     await logDenied(user.id, "integrity scan refused: court roles only");
@@ -367,17 +382,10 @@ export async function runIntegrityScan(user: SessionUser, caseId?: string, deps?
 
   const saved = await db.withUser(user.id, async (tx) => {
     const basis = defaultBasis(user.role);
-    const events: { docId: string; caseId: string; filename: string; entryHash: string; ranges: string }[] = [];
+    const events: TamperEvent[] = [];
     for (let i = 0; i < loaded.length; i++) {
-      const row = loaded[i].row, result = outcomes[i];
-      result.lastAccessors = await accessors(tx, row.id);
-      await tx.query("INSERT INTO verification_results (doc_id, status, result, checked_by) VALUES ($1,$2,$3::jsonb,$4)", [row.id, result.status, JSON.stringify(result), user.id]);
-      if (result.status === "TAMPERED") {
-        const ranges = result.tamperRanges.map((r) => `chunk ${r.chunkIndex}`).join(", ") || "part mismatch";
-        const e = await writeAudit(tx, { actorId: user.id, action: "TAMPER_DETECTED", docId: row.id, caseId: row.case_id, basis,
-          detail: `scan: tampered: ${result.tamperRanges.map((r) => `chunk ${r.chunkIndex} [${r.byteStart}-${r.byteEnd}]`).join(", ") || "part/hash mismatch"}` });
-        events.push({ docId: row.id, caseId: row.case_id, filename: row.filename, entryHash: e.entryHash, ranges });
-      }
+      const ev = await recordVerification(tx, user, loaded[i].row, outcomes[i], basis, "scan");
+      if (ev) events.push(ev);
     }
     const tamperedCount = outcomes.filter((o) => o.status === "TAMPERED").length;
     await writeAudit(tx, { actorId: user.id, action: "SCAN", caseId: caseId ?? null, basis: systemBasis(), detail: `scanned ${loaded.length} document(s): ${tamperedCount} tampered` });

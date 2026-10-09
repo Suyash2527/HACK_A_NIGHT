@@ -34,4 +34,19 @@ DROP TRIGGER IF EXISTS scans_append_only ON integrity_scans;
 CREATE TRIGGER scans_append_only BEFORE UPDATE OR DELETE ON integrity_scans FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
 GRANT SELECT, INSERT ON integrity_scans TO app_user;
 
+-- Court-order workflow helpers for advocates, who cannot read cases or documents directly (RLS) until a judge grants access.
+CREATE OR REPLACE FUNCTION request_case_fir(p_case uuid) RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, app AS
+$$ SELECT c.fir_no FROM app.cases c
+   WHERE c.id = p_case AND (app.is_court() OR EXISTS (SELECT 1 FROM app.document_requests r WHERE r.case_id = p_case AND r.requester_id = app.app_uid())) $$;
+
+-- True when every listed document exists and belongs to the case (callable by advocates and the court only).
+CREATE OR REPLACE FUNCTION request_validate(p_case uuid, p_docs uuid[]) RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, app AS $$
+BEGIN
+  IF app.app_role() NOT IN ('DEFENCE_ADVOCATE','JUDGE','ADMIN') THEN RAISE EXCEPTION 'insufficient_privilege' USING ERRCODE = '42501'; END IF;
+  RETURN (SELECT count(*) FROM app.documents d WHERE d.case_id = p_case AND d.id = ANY (p_docs)) = (SELECT count(DISTINCT x) FROM unnest(p_docs) x);
+END $$;
+GRANT EXECUTE ON FUNCTION request_case_fir(uuid), request_validate(uuid, uuid[]) TO app_user;
+
 RESET ROLE;

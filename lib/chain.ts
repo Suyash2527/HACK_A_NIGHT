@@ -50,6 +50,7 @@ export interface RegistryLike {
   logAuditEvent(subjectId: string, action: number, actorHash: string, eventHash: string): Promise<TxLike>;
   anchorBatch(batchId: number | bigint, root: string, signatureHash: string, docCount: number): Promise<TxLike>;
   getBatch?(batchId: number | bigint): Promise<{ root: string; anchoredAt: bigint | number }>;
+  getCaseManifest?(caseRef: string): Promise<{ root: string; version: bigint | number }>;
 }
 export interface TxLike { hash: string; wait(confirmations?: number): Promise<{ blockNumber: number; status?: number | null } | null> }
 
@@ -122,6 +123,14 @@ export class ChainService {
   }
 
   explorerUrl(txHash: string) { return explorerTxUrl(this.profile, txHash); }
+
+  /** Latest case-folder manifest sealed on-chain for a case (plain hex root + version), or null if none is there yet. */
+  async manifestOnChain(caseId: string): Promise<{ root: string; version: number } | null> {
+    if (!this.registry.getCaseManifest) return null;
+    const m = await this.registry.getCaseManifest(caseRefFor(caseId));
+    if (!m || Number(m.version) === 0) return null;
+    return { root: String(m.root).replace(/^0x/, "").toLowerCase(), version: Number(m.version) };
+  }
 
   /** Root stored on-chain for a batch (plain lowercase hex), or null when the batch is not (yet) anchored there. Confirmed roots are immutable, so they are cached. */
   private roots = new Map<number, string>();
