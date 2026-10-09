@@ -66,3 +66,14 @@ Scripts (PowerShell, re-runnable): `infra/01-core … 07-https.ps1`; **deploy = 
 - Use Windows' `tar.exe` (Git Bash tar mis-parses `D:\`); AWS CLI prints `None` for empty results.
 - Sepolia: ~12 s blocks; chain queue waits for each confirmation (dependent txs fail gas estimation otherwise). Sepolia gas is ~free; deploy cost 0.013 ETH; deployer `0x49e6…a8a0` has ~0.007 ETH (testnet only).
 - Never commit or print: `.env.local`, `contracts/.env`, AWS credentials. A secret scan was clean at the last commit.
+
+---
+## STATE UPDATE — Sat 10 Oct 2026, ~00:10 IST (Claude Code)
+**All API routes in `ApiRoutes` are live and tested** (133 unit tests; `scripts/e2e-live.mts <url>` passes 100% against https://3-109-114-12.sslip.io with real Cognito logins and real Sepolia transactions: upload → zero-trust denial → VERIFIED with Etherscan link → insider attack localised to chunk 2 / bytes 8192–12287 → restore → new version VERIFIED → folder bundle ZIP).
+- Extra route not in the original list: `GET /api/requests/catalog?firNo=` (advocate/court title lookup) and `POST /api/demo/attack` (ADMIN + `SAKSHYA_DEMO_ATTACK=1`, else 404). Types in `types/api.ts`.
+- Anchoring: `lib/anchoring.ts`; the server runs a loop every minute (`instrumentation.ts`) that batches unanchored documents into one Merkle root, signs it with the system ML-DSA key, commits root + signature hash + audit-log head on-chain, and stores per-document proofs. Verification reads the root back from the chain (`ChainService.batchRoot`). Manual: `npm run anchor` (never while the server uses the same signer).
+- DB changes ship as idempotent patches in `db/patches/*.sql` (applied by `scripts/migrate.mjs` on every `-Migrate` deploy and by the PGlite loader). The live DB had no `chain_txs` table before patch 001 — now fixed.
+- Scans are synchronous, ≤150 documents (pass `caseId` to narrow). Assembly bundles hold the CURRENT version of each document; superseded damaged versions are reported, not bundled. Bundles live in memory only (10 min, bound to the user).
+- Case data import: `.\infra\08-import-data.ps1` (chain disabled for the import; the server anchors the batch within a minute). **Not run yet — `data/cases` is empty.** Not idempotent: run it once.
+- Lab/prosecutor assignment to a case is DB-only (importer does it); there is no assign API. New cases created in the UI are therefore invisible to the lab (scene 2 relies on that; scene 3/4 use imported cases).
+- Still TODO: refresh `docs/architecture` PDF + README; run `08-import-data.ps1` when the 40 cases arrive; rehearsals; final teardown (delete IAM user `sakshya-deployer`).
