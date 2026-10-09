@@ -3,7 +3,6 @@ import { FirNumber } from "./fir-number";
 import Link from "next/link";
 import { useSession } from "./session";
 import { useResource } from "./use-resource";
-import { mockCase, MOCK_DOCUMENTS } from "./offline-demo-data";
 import { ResourceError } from "./access-state";
 import { CopyableHash, DataTable, EmptyState, FileIcon, PageSkeleton, PrintButton, RelativeTime, SectionCard, humanize } from "./design-system";
 import { PageHeader } from "./page-header";
@@ -16,8 +15,8 @@ export function CaseDetailView({ id }: {
     id: string;
 }) {
     const session = useSession();
-    const record = useResource("GET /api/cases/[id]", { params: { id }, mock: mockCase(id) });
-    const documents = useResource("GET /api/documents", { query: { caseId: id }, mock: { ...MOCK_DOCUMENTS, items: MOCK_DOCUMENTS.items.filter(d => d.caseId === id) } });
+    const record = useResource("GET /api/cases/[id]", { params: { id } });
+    const documents = useResource("GET /api/documents", { query: { caseId: id } });
     if (record.loading || documents.loading)
         return <PageSkeleton />;
     if (record.error || documents.error)

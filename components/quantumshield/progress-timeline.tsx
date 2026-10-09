@@ -3,12 +3,11 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CASE_STAGES, type CaseProgress, type CaseStage } from "@/types/api";
-import { apiFetch } from "@/components/api-client";
+import { api } from "@/components/api-client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MOCK_PROGRESS } from "./offline-demo-data";
 import { useSession } from "./session";
 import { useResource } from "./use-resource";
 import { ResourceError } from "./access-state";
@@ -19,7 +18,7 @@ export function ProgressTimeline({ caseId }: {
     caseId: string;
 }) {
     const session = useSession();
-    const resource = useResource("GET /api/cases/[id]/progress", { params: { id: caseId }, mock: caseId === MOCK_PROGRESS.caseId ? MOCK_PROGRESS : undefined });
+    const resource = useResource("GET /api/cases/[id]/progress", { params: { id: caseId } });
     if (resource.loading)
         return <PageSkeleton />;
     if (resource.error)
@@ -34,21 +33,25 @@ function AddMilestone({ data, onComplete }: {
     data: CaseProgress;
     onComplete: (v: CaseProgress) => void;
 }) {
-    const session = useSession();
+
     const [open, setOpen] = useState(false), [stage, setStage] = useState<CaseStage>(data.nextExpectedStage ?? data.currentStage), [note, setNote] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
-    async function submit() { setBusy(true); setError(""); try {
-        const next = await apiFetch("POST /api/cases/[id]/milestones", { params: { id: data.caseId }, body: { stage, note: note.trim() || undefined }, mock: { ...data, currentStage: stage, nextExpectedStage: CASE_STAGES[CASE_STAGES.indexOf(stage) + 1] ?? null, milestones: [...data.milestones, { stage, note: note.trim() || null, at: new Date().toISOString(), recordedBy: session.user }] } });
-        onComplete(next);
-        setOpen(false);
-        setNote("");
-        toast.success("Milestone recorded");
+    async function submit() {
+        setBusy(true);
+        setError("");
+        try {
+            const next = await api("POST /api/cases/[id]/milestones", { params: { id: data.caseId }, body: { stage, note: note.trim() || undefined } });
+            onComplete(next);
+            setOpen(false);
+            setNote("");
+            toast.success("Milestone recorded");
+        }
+        catch (e) {
+            setError(e instanceof Error ? e.message : "Could not record milestone");
+            toast.error("Milestone was not saved");
+        }
+        finally {
+            setBusy(false);
+        }
     }
-    catch (e) {
-        setError(e instanceof Error ? e.message : "Could not record milestone");
-        toast.error("Milestone was not saved");
-    }
-    finally {
-        setBusy(false);
-    } }
     return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus />Add milestone</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Add public-safe update</DialogTitle><DialogDescription>The complainant sees this note. Do not include evidence, hashes or private identities.</DialogDescription></DialogHeader><Label htmlFor="milestone-stage">Case stage</Label><select id="milestone-stage" className="h-11 rounded border bg-background px-3" value={stage} onChange={e => setStage(e.target.value as CaseStage)}>{CASE_STAGES.map(s => <option key={s} value={s}>{humanize(s)}</option>)}</select><Label htmlFor="milestone-note">Public-safe note</Label><Textarea id="milestone-note" value={note} onChange={e => setNote(e.target.value)} maxLength={1500}/>{error && <p role="alert" className="text-sm text-tampered">{error}</p>}<DialogFooter showCloseButton><Button disabled={busy} onClick={() => void submit()}>{busy ? "Recording…" : "Record milestone"}</Button></DialogFooter></DialogContent></Dialog>;
 }

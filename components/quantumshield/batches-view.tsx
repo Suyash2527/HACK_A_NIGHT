@@ -1,13 +1,12 @@
 "use client";
 import { Check, Clock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MOCK_BATCHES, MOCK_CHAIN } from "./offline-demo-data";
 import { useResource } from "./use-resource";
 import { ResourceError } from "./access-state";
 import { CopyableHash, DataTable, PageSkeleton, RelativeTime, SectionCard } from "./design-system";
 import { PageHeader } from "./page-header";
 export function BatchesView() {
-    const batches = useResource("GET /api/batches", { mock: MOCK_BATCHES }), chain = useResource("GET /api/chain", { mock: MOCK_CHAIN });
+    const batches = useResource("GET /api/batches", {}), chain = useResource("GET /api/chain", {});
     if (batches.loading || chain.loading)
         return <PageSkeleton />;
     if (batches.error || chain.error)

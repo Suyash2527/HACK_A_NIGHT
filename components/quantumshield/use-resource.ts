@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { ApiRoute, ApiRoutes, Page } from "@/types/api";
-import { apiFetch, USE_MOCKS, type ApiRequest } from "@/components/api-client";
+import { api, type ApiRequest } from "@/components/api-client";
 const paginated = new Set<ApiRoute>(["GET /api/cases", "GET /api/documents", "GET /api/audit", "GET /api/batches"]);
 export function useResource<R extends ApiRoute>(route: R, request: ApiRequest<R>) {
     const [data, setData] = useState<ApiRoutes[R]["res"] | null>(null);
@@ -19,8 +19,8 @@ export function useResource<R extends ApiRoute>(route: R, request: ApiRequest<R>
                 setError(null);
             }
             try {
-                let value = await apiFetch(route, { ...parsed, signal: controller.signal });
-                if (paginated.has(route) && !USE_MOCKS) {
+                let value = await api(route, { ...parsed, signal: controller.signal });
+                if (paginated.has(route)) {
                     const page = value as Page<unknown>;
                     const items = [...page.items];
                     let cursor = page.nextCursor;
@@ -29,7 +29,7 @@ export function useResource<R extends ApiRoute>(route: R, request: ApiRequest<R>
                         if (seen.has(cursor))
                             throw new Error("Pagination cursor repeated. Retry the register.");
                         seen.add(cursor);
-                        const next = await apiFetch(route, { ...parsed, query: { ...(parsed.query as Record<string, unknown>), cursor }, signal: controller.signal } as ApiRequest<R>) as Page<unknown>;
+                        const next = await api(route, { ...parsed, query: { ...(parsed.query as Record<string, unknown>), cursor }, signal: controller.signal } as ApiRequest<R>) as Page<unknown>;
                         items.push(...next.items);
                         cursor = next.nextCursor;
                     }

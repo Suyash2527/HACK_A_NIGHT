@@ -14,14 +14,16 @@ export function CopyableHash({ value, label = "Hash" }: {
     label?: string;
 }) {
     const [copied, setCopied] = useState(false);
-    async function copy() { try {
-        await navigator.clipboard.writeText(value!);
-        setCopied(true);
-        toast.success(label + " copied");
+    async function copy() {
+        try {
+            await navigator.clipboard.writeText(value!);
+            setCopied(true);
+            toast.success(label + " copied");
+        }
+        catch {
+            toast.error("Could not copy. Select the full value below.");
+        }
     }
-    catch {
-        toast.error("Could not copy. Select the full value below.");
-    } }
     if (!value)
         return <span className="text-xs text-muted-foreground">Not recorded</span>;
     return <span className="inline-flex max-w-full items-center gap-1"><details className="min-w-0"><summary className="cursor-pointer rounded font-mono text-xs text-muted-foreground" title={value}>{value.slice(0, 8)}…{value.slice(-6)}</summary><span className="hash-value block max-w-60 py-2">{value}</span></details><Button variant="ghost" size="icon-sm" className="no-print shrink-0" onClick={copy} aria-label={"Copy " + label}>{copied ? <Check /> : <Copy />}</Button><span className="print-only hash-value">{value}</span></span>;

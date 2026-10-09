@@ -35,23 +35,28 @@ export function IntegrityPanel({ result, canRestore = false, documentName = "Evi
     const [reason, setReason] = useState("");
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
-    async function restore() { if (!reason.trim()) {
-        setError("Explain why this version needs recovery.");
-        return;
-    } setBusy(true); setError(""); try {
-        if (!onRestore)
-            throw new Error("Recovery is unavailable for this view. Open the evidence record.");
-        await onRestore(reason.trim());
-        setOpen(false);
-        setReason("");
+    async function restore() {
+        if (!reason.trim()) {
+            setError("Explain why this version needs recovery.");
+            return;
+        }
+        setBusy(true);
+        setError("");
+        try {
+            if (!onRestore)
+                throw new Error("Recovery is unavailable for this view. Open the evidence record.");
+            await onRestore(reason.trim());
+            setOpen(false);
+            setReason("");
+        }
+        catch (e) {
+            setError(e instanceof Error ? e.message : "Recovery failed");
+            toast.error("Recovery could not be completed");
+        }
+        finally {
+            setBusy(false);
+        }
     }
-    catch (e) {
-        setError(e instanceof Error ? e.message : "Recovery failed");
-        toast.error("Recovery could not be completed");
-    }
-    finally {
-        setBusy(false);
-    } }
     const tone = (status: CheckStatus) => status === "fail" ? "tone-danger" : status === "skip" ? "tone-neutral" : result.status === "VERIFIED" ? "tone-verified" : "tone-info";
     const restoreAction = result.status === "TAMPERED" && result.originalVersionAvailable && <AlertDialog open={open} onOpenChange={setOpen}><AlertDialogTrigger asChild><Button disabled={!canRestore || !onRestore} title={!canRestore ? "An authorized document contributor must restore this evidence" : undefined} className="no-print"><RotateCcw />Restore original</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Restore the protected original?</AlertDialogTitle><AlertDialogDescription>S3 Object Lock retains the original. Recovery creates a new version; the damaged version and its audit history remain. The new version needs verification and anchoring.</AlertDialogDescription></AlertDialogHeader><div className="grid gap-2"><Label htmlFor="restore-reason">Recovery reason</Label><Input id="restore-reason" value={reason} onChange={e => setReason(e.target.value)} aria-invalid={!!error} aria-describedby={error ? "restore-error" : undefined} placeholder="Reason for restoring this evidence"/>{error && <p id="restore-error" role="alert" className="text-xs text-tampered">{error}</p>}</div><AlertDialogFooter><AlertDialogCancel disabled={busy}>Keep current version</AlertDialogCancel><Button onClick={() => void restore()} disabled={busy}>{busy ? "Submitting…" : "Confirm recovery"}</Button></AlertDialogFooter></AlertDialogContent></AlertDialog>;
     const explorer = result.anchor?.explorerUrl;
