@@ -417,6 +417,7 @@ export const hi: Record<MessageKey, string> = {
   "chk.run": "सारे साक्ष्य अभी जाँचें",
   "chk.running": "जाँच हो रही है…",
   "chk.wait": "जाँच चल रही है। नीचे के नतीजे पिछली जाँच के हैं।",
+  "chk.progress": "{of} में से {done} मामले जाँचे गए…",
   "chk.stale": "{error} पहले के नतीजे पुराने हो सकते हैं।",
   "chk.summary": "{total} में से {checked} दस्तावेज़ जाँचे · {ok} अपरिवर्तित · {bad} बदले हुए",
   "chk.failed": "जाँच पूरी नहीं हो सकी।",

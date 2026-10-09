@@ -417,6 +417,7 @@ export const en = {
   "chk.run": "Check all evidence now",
   "chk.running": "Checking…",
   "chk.wait": "Checking. The results below are from the last check.",
+  "chk.progress": "Checking case {done} of {of}…",
   "chk.stale": "{error} Earlier results may be out of date.",
   "chk.summary": "{checked} of {total} documents checked · {ok} unchanged · {bad} changed",
   "chk.failed": "The check could not be completed.",

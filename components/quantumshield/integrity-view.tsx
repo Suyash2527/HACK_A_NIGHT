@@ -14,19 +14,46 @@ import { IntegrityPanel } from "./integrity-panel";
 import { useI18n } from "./i18n";
 
 const FILTERS = ["ALL", "TAMPERED", "VERIFIED", "PENDING_ANCHOR", "UNANCHORED", "ERROR"] as const;
+const SCAN_CONCURRENCY = 3;
 
 export function IntegrityView() {
   const { t, label } = useI18n();
   const [scan, setScan] = useState<ScanDetail | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; of: number } | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("ALL");
 
+  // The server checks at most 150 documents per request, so the whole register is checked case by case
+  // (a few cases at a time) and the results are combined into one report.
   async function run() {
     setBusy(true);
     setError("");
+    setProgress(null);
     try {
-      setScan(await api("POST /api/integrity/scans", { body: {} }));
+      const cases: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await api("GET /api/cases", { query: { limit: 100, cursor } });
+        cases.push(...page.items.map(c => c.id));
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor);
+
+      const startedAt = new Date().toISOString();
+      const results: ScanDetail["results"] = [];
+      let checked = 0, total = 0, done = 0;
+      const queue = [...cases];
+      async function worker() {
+        for (let id = queue.shift(); id; id = queue.shift()) {
+          const part = await api("POST /api/integrity/scans", { body: { caseId: id } });
+          results.push(...part.results);
+          checked += part.checked;
+          total += part.total;
+          setProgress({ done: ++done, of: cases.length });
+        }
+      }
+      await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, worker));
+      setScan({ id: "combined", status: "completed", checked, total, startedAt, completedAt: new Date().toISOString(), results });
       toast.info(t("chk.done"));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("chk.failed"));
@@ -47,7 +74,7 @@ export function IntegrityView() {
         description={t("chk.sub")}
         action={<Button onClick={() => void run()} disabled={busy}><Play />{busy ? t("chk.running") : t("chk.run")}</Button>}
       />
-      {busy && <InlineNotice>{t("chk.wait")}</InlineNotice>}
+      {busy && <InlineNotice>{progress ? t("chk.progress", { done: progress.done, of: progress.of }) : t("chk.wait")}</InlineNotice>}
       {error && <InlineNotice danger>{t("chk.stale", { error })}</InlineNotice>}
       {scan?.error && <InlineNotice danger>{scan.error.message}</InlineNotice>}
       {scan && (

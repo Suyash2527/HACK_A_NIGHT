@@ -417,6 +417,7 @@ export const mr: Record<MessageKey, string> = {
   "chk.run": "सर्व पुरावे आता तपासा",
   "chk.running": "तपासणी सुरू आहे…",
   "chk.wait": "तपासणी सुरू आहे. खालील निकाल मागील तपासणीचे आहेत.",
+  "chk.progress": "{of} पैकी {done} प्रकरणे तपासली…",
   "chk.stale": "{error} आधीचे निकाल जुने असू शकतात.",
   "chk.summary": "{total} पैकी {checked} कागदपत्रे तपासली · {ok} अपरिवर्तित · {bad} बदललेली",
   "chk.failed": "तपासणी पूर्ण होऊ शकली नाही.",
