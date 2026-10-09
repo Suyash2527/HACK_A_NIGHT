@@ -1,4 +1,4 @@
-# Sakshya — black UI demo path
+# Sakshya — court-register UI demo path
 
 Use the deployed HTTPS site or the single local server on port 3100. Live mode is NEXT_PUBLIC_USE_MOCKS=false. Offline mode is explicitly true and shows “Demo data — simulated results”. The shared password is entered by the operator; never put it in this document or a screenshot.
 
@@ -35,3 +35,5 @@ Use the deployed HTTPS site or the single local server on port 3100. Live mode i
 ## Verification status for this redesign
 
 Typecheck, lint and a production build are required before delivery. Browser visual review and live UI rehearsal must be completed using a connected browser. The editing session currently has no browser connection; responsive checks and before/after screenshots remain pending.
+
+Final look: warm off-white page, white result panels, ink buttons, saffron links, serif page titles and ruled tables. Restore is absent on clean versions. Dialogs dim the page and retain modal keyboard focus. Signed-in visitors return from Login to their role home. Final browser review is requested from the operator; the pre-restyle live flows were verified by the operator.

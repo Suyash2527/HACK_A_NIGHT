@@ -1,31 +1,54 @@
-import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import test from "node:test"
-import { createElement } from "react"
-import { renderToStaticMarkup } from "react-dom/server"
-import { DataTable } from "./design-system"; import { IntegrityPanel } from "./integrity-panel"
-import { StatusBadge } from "./status-badge"
-import { MOCK_CASES, MOCK_REQUESTS, MOCK_PROGRESS, MOCK_SESSION, mockRegisterCase, mockFirCheck, MOCK_ASSEMBLY, MOCK_AUDIT, MOCK_DOCUMENTS, MOCK_TAMPERED_RESULT, MOCK_VERIFIED_RESULT, mockVerification } from "./mocks"
-import { TRUST_COPY } from "./trust-strip"
-import { FirNumber } from "./fir-number"
-import { FIR_NUMBER_PATTERN, type CaseSummary, type VerifyStatus } from "@/types/api"
-function contrast(a:string,b:string){const lum=(hex:string)=>{const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4);return c[0]*0.2126+c[1]*0.7152+c[2]*0.0722};const x=lum(a),y=lum(b);return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05)}
-test("court-register text palette meets AA contrast",()=>{for(const fg of ["#1c1b19","#5d5a52","#b45309","#1a7f37","#b42318","#9a6700"])assert.ok(contrast(fg,"#faf8f4")>=4.5,fg)})
-test("all verification states pair an icon with a label; only VERIFIED is green",()=>{for(const status of ["VERIFIED","TAMPERED","PENDING_ANCHOR","UNANCHORED","ERROR"] as VerifyStatus[]){const html=renderToStaticMarkup(createElement(StatusBadge,{status}));assert.match(html,/<svg/);assert.equal(html.includes("tone-verified"),status==="VERIFIED");assert.ok(!html.includes(">"+status+"<"))}})
-test("tamper incident preserves six checks, exact range, parts, accessors and trust boundary",()=>{const html=renderToStaticMarkup(createElement(IntegrityPanel,{result:MOCK_TAMPERED_RESULT,documentName:"FIR_0142.txt",canRestore:true,onRestore:async()=>{}}));assert.equal((html.match(/check-reveal/g)??[]).length,6);assert.match(html,/chunk 2, bytes 8192–12287/);assert.match(html,/FIR_0142.txt/);assert.match(html,/Inspector Aditi Patil/);assert.match(html,/Restore original/);assert.match(html,/Local dev chain/);assert.match(html,/Encrypted storage parts/);assert.ok(!html.includes("tone-verified"));assert.ok(html.includes(TRUST_COPY.replaceAll("'","&#x27;")))})
-test("verified fixture renders green; assembly does not contradict its tampered source",()=>{assert.match(renderToStaticMarkup(createElement(IntegrityPanel,{result:MOCK_VERIFIED_RESULT})),/tone-verified/);assert.equal(MOCK_ASSEMBLY.bundle,null);assert.equal(MOCK_ASSEMBLY.documents[0].verification.status,"TAMPERED");for(const d of MOCK_DOCUMENTS.items){assert.equal(mockVerification(d.id).parts?.length,d.partCount)}})
-test("every audit fixture contains legal authority",()=>{for(const e of MOCK_AUDIT.items){assert.ok(e.legalBasis.code);assert.ok("citation" in e.legalBasis);assert.ok("orderRef" in e.legalBasis)}})
-test("motion, print and light defaults are explicit",()=>{const css=readFileSync("app/globals.css","utf8");assert.ok(css.includes("@media(prefers-reduced-motion:reduce)"));assert.ok(css.includes("animation:none!important"));assert.ok(css.includes("transition:none!important"));assert.ok(css.includes("@media print"));assert.match(readFileSync("components/theme-provider.tsx","utf8"),/defaultTheme="light"/);assert.match(readFileSync("app/layout.tsx","utf8"),/default: "Sakshya"/)})
-
-test("all mock FIR references conform to the shared contract",()=>{for(const firNo of [...MOCK_CASES.items.map(c=>c.firNo),...MOCK_REQUESTS.items.map(r=>r.firNo),MOCK_PROGRESS.firNo])assert.ok(FIR_NUMBER_PATTERN.test(firNo),firNo)})
-test("FIR lookup distinguishes issued, changed-code, missing and malformed numbers",()=>{const known=MOCK_CASES.items[0];assert.deepEqual(mockFirCheck(known.firNo),{firNo:known.firNo,genuine:true,stationCode:"GNG",issuedAt:known.createdAt});for(const number of [known.firNo.slice(0,-4)+"FFFF","GNG/2026/9999/ABCD","NSK/2026/0142",""]){const result=mockFirCheck(number);assert.equal(result.genuine,false);assert.equal(result.issuedAt,null);assert.equal(result.stationCode,null)}})
-test("mock registration assigns its number and station without officer inputs",()=>{const result=mockRegisterCase(MOCK_SESSION);assert.ok(FIR_NUMBER_PATTERN.test(result.firNo));assert.equal(result.station,MOCK_SESSION.user.station);assert.equal(result.documentCount,0);assert.equal(result.stage,"FIR_REGISTERED");assert.equal(result.manifest,null);assert.equal(result.integrity.VERIFIED,0);assert.ok(!MOCK_CASES.items.some(c=>c.firNo===result.firNo))})
-test("FIR presentation separates the register code without claiming evidence verified",()=>{const html=renderToStaticMarkup(createElement(FirNumber,{value:MOCK_CASES.items[0].firNo}));assert.match(html,/font-mono/);assert.match(html,/Register verification code/);assert.match(html,/A3F9/);assert.ok(!html.includes("tone-verified"))})
-test("case registration sends only optional complainant email and preserves its receipt",()=>{const source=readFileSync("components/quantumshield/cases-view.tsx","utf8");assert.ok(source.includes('const body:CreateCaseRequest=email.trim()?{complainantEmail:email.trim()}:{}'));assert.ok(!source.includes('id="station"'));assert.ok(!source.includes('id="fir"'));assert.ok(source.includes('Copy assigned FIR number'));assert.ok(source.includes('Assigned by Sakshya · verification code'));assert.ok(source.includes('<FirCheckBox/>'))})
-
-test("40 mock cases have unique ids, FIR numbers and consistent counts",()=>{assert.equal(MOCK_CASES.items.length,40);assert.equal(new Set(MOCK_CASES.items.map(c=>c.id)).size,40);assert.equal(new Set(MOCK_CASES.items.map(c=>c.firNo)).size,40);for(const c of MOCK_CASES.items)assert.equal(Object.values(c.integrity).reduce((a,b)=>a+b,0),c.documentCount)})
-
-test("40-case table renders 20 rows and two pages",()=>{const html=renderToStaticMarkup(createElement(DataTable<CaseSummary>,{rows:MOCK_CASES.items,rowKey:(row:typeof MOCK_CASES.items[number])=>row.id,searchText:(row:typeof MOCK_CASES.items[number])=>row.firNo,columns:[{key:"fir",label:"FIR No.",sort:(row:typeof MOCK_CASES.items[number])=>row.firNo,render:(row:typeof MOCK_CASES.items[number])=>row.firNo}]}));assert.equal((html.match(/data-slot="table-row"/g)??[]).length,21);assert.match(html,/Page 1 of 2/);assert.match(html,/40 records/)})
-
-test("clean versions never offer restore, even when a retained original exists",()=>{const html=renderToStaticMarkup(createElement(IntegrityPanel,{result:{...MOCK_VERIFIED_RESULT,originalVersionAvailable:true},canRestore:true,onRestore:async()=>{}}));assert.ok(!html.includes("Restore original"))})
-test("tampered restore remains disabled for an unpermitted role",()=>{const html=renderToStaticMarkup(createElement(IntegrityPanel,{result:MOCK_TAMPERED_RESULT,canRestore:false,onRestore:async()=>{}}));assert.match(html,/disabled=""[^>]*>.*?Restore original/);assert.ok(!html.includes("tone-verified"))})
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DataTable } from "./design-system";
+import { IntegrityPanel } from "./integrity-panel";
+import { StatusBadge } from "./status-badge";
+import { MOCK_CASES, MOCK_REQUESTS, MOCK_PROGRESS, MOCK_SESSION, mockRegisterCase, mockFirCheck, MOCK_ASSEMBLY, MOCK_AUDIT, MOCK_DOCUMENTS, MOCK_TAMPERED_RESULT, MOCK_VERIFIED_RESULT, mockVerification } from "./offline-demo-data";
+import { TRUST_COPY } from "./trust-strip";
+import { FirNumber } from "./fir-number";
+import { FIR_NUMBER_PATTERN, type CaseSummary, type VerifyStatus } from "@/types/api";
+function contrast(a: string, b: string) { const lum = (hex: string) => { const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722; }; const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+test("court-register text palette meets AA contrast", () => { for (const fg of ["#1c1b19", "#5d5a52", "#b45309", "#1a7f37", "#b42318", "#9a6700"])
+    assert.ok(contrast(fg, "#faf8f4") >= 4.5, fg); });
+test("all verification states pair an icon with a label; only VERIFIED is green", () => { for (const status of ["VERIFIED", "TAMPERED", "PENDING_ANCHOR", "UNANCHORED", "ERROR"] as VerifyStatus[]) {
+    const html = renderToStaticMarkup(createElement(StatusBadge, { status }));
+    assert.match(html, /<svg/);
+    assert.equal(html.includes("tone-verified"), status === "VERIFIED");
+    assert.ok(!html.includes(">" + status + "<"));
+} });
+test("tamper incident preserves six checks, exact range, parts, accessors and trust boundary", () => { const html = renderToStaticMarkup(createElement(IntegrityPanel, { result: MOCK_TAMPERED_RESULT, documentName: "FIR_0142.txt", canRestore: true, onRestore: async () => { } })); assert.equal((html.match(/check-reveal/g) ?? []).length, 6); assert.match(html, /chunk 2, bytes 8192–12287/); assert.match(html, /FIR_0142.txt/); assert.match(html, /Inspector Aditi Patil/); assert.match(html, /Restore original/); assert.match(html, /Local dev chain/); assert.match(html, /Encrypted storage parts/); assert.ok(!html.includes("tone-verified")); assert.ok(html.includes(TRUST_COPY.replaceAll("'", "&#x27;"))); });
+test("verified fixture renders green; assembly does not contradict its tampered source", () => { assert.match(renderToStaticMarkup(createElement(IntegrityPanel, { result: MOCK_VERIFIED_RESULT })), /tone-verified/); assert.equal(MOCK_ASSEMBLY.bundle, null); assert.equal(MOCK_ASSEMBLY.documents[0].verification.status, "TAMPERED"); for (const d of MOCK_DOCUMENTS.items) {
+    assert.equal(mockVerification(d.id).parts?.length, d.partCount);
+} });
+test("every audit fixture contains legal authority", () => { for (const e of MOCK_AUDIT.items) {
+    assert.ok(e.legalBasis.code);
+    assert.ok("citation" in e.legalBasis);
+    assert.ok("orderRef" in e.legalBasis);
+} });
+test("motion, print and light defaults are explicit", () => { const css = readFileSync("app/globals.css", "utf8"); assert.ok(css.includes("@media(prefers-reduced-motion:reduce)")); assert.ok(css.includes("animation:none!important")); assert.ok(css.includes("transition:none!important")); assert.ok(css.includes("@media print")); assert.match(readFileSync("components/theme-provider.tsx", "utf8"), /defaultTheme="light"/); assert.match(readFileSync("app/layout.tsx", "utf8"), /default: "Sakshya"/); });
+test("all mock FIR references conform to the shared contract", () => { for (const firNo of [...MOCK_CASES.items.map(c => c.firNo), ...MOCK_REQUESTS.items.map(r => r.firNo), MOCK_PROGRESS.firNo])
+    assert.ok(FIR_NUMBER_PATTERN.test(firNo), firNo); });
+test("FIR lookup distinguishes issued, changed-code, missing and malformed numbers", () => { const known = MOCK_CASES.items[0]; assert.deepEqual(mockFirCheck(known.firNo), { firNo: known.firNo, genuine: true, stationCode: "GNG", issuedAt: known.createdAt }); for (const number of [known.firNo.slice(0, -4) + "FFFF", "GNG/2026/9999/ABCD", "NSK/2026/0142", ""]) {
+    const result = mockFirCheck(number);
+    assert.equal(result.genuine, false);
+    assert.equal(result.issuedAt, null);
+    assert.equal(result.stationCode, null);
+} });
+test("mock registration assigns its number and station without officer inputs", () => { const result = mockRegisterCase(MOCK_SESSION); assert.ok(FIR_NUMBER_PATTERN.test(result.firNo)); assert.equal(result.station, MOCK_SESSION.user.station); assert.equal(result.documentCount, 0); assert.equal(result.stage, "FIR_REGISTERED"); assert.equal(result.manifest, null); assert.equal(result.integrity.VERIFIED, 0); assert.ok(!MOCK_CASES.items.some(c => c.firNo === result.firNo)); });
+test("FIR presentation separates the register code without claiming evidence verified", () => { const html = renderToStaticMarkup(createElement(FirNumber, { value: MOCK_CASES.items[0].firNo })); assert.match(html, /font-mono/); assert.match(html, /Register verification code/); assert.match(html, /A3F9/); assert.ok(!html.includes("tone-verified")); });
+test("case registration sends only optional complainant email and preserves its receipt", () => {
+ const source=readFileSync("components/quantumshield/cases-view.tsx","utf8");
+ const compact=source.split("").filter(c=>c.trim()!=="").join("");
+ assert.ok(compact.includes('constbody:CreateCaseRequest=email.trim()?{complainantEmail:email.trim()}:{}'));
+ assert.ok(!source.includes('id="station"'));assert.ok(!source.includes('id="fir"'));
+ assert.ok(source.includes('Copy assigned FIR number'));assert.ok(source.includes('Assigned by Sakshya · verification code'));
+ assert.ok(compact.includes('<FirCheckBox/>'));
+});
+test("40 mock cases have unique ids, FIR numbers and consistent counts", () => { assert.equal(MOCK_CASES.items.length, 40); assert.equal(new Set(MOCK_CASES.items.map(c => c.id)).size, 40); assert.equal(new Set(MOCK_CASES.items.map(c => c.firNo)).size, 40); for (const c of MOCK_CASES.items)
+    assert.equal(Object.values(c.integrity).reduce((a, b) => a + b, 0), c.documentCount); });
+test("40-case table renders 20 rows and two pages", () => { const html = renderToStaticMarkup(createElement(DataTable<CaseSummary>, { rows: MOCK_CASES.items, rowKey: (row: typeof MOCK_CASES.items[number]) => row.id, searchText: (row: typeof MOCK_CASES.items[number]) => row.firNo, columns: [{ key: "fir", label: "FIR No.", sort: (row: typeof MOCK_CASES.items[number]) => row.firNo, render: (row: typeof MOCK_CASES.items[number]) => row.firNo }] })); assert.equal((html.match(/data-slot="table-row"/g) ?? []).length, 21); assert.match(html, /Page 1 of 2/); assert.match(html, /40 records/); });
+test("clean versions never offer restore, even when a retained original exists", () => { const html = renderToStaticMarkup(createElement(IntegrityPanel, { result: { ...MOCK_VERIFIED_RESULT, originalVersionAvailable: true }, canRestore: true, onRestore: async () => { } })); assert.ok(!html.includes("Restore original")); });
+test("tampered restore remains disabled for an unpermitted role", () => { const html = renderToStaticMarkup(createElement(IntegrityPanel, { result: MOCK_TAMPERED_RESULT, canRestore: false, onRestore: async () => { } })); assert.match(html, /disabled=""[^>]*>.*?Restore original/); assert.ok(!html.includes("tone-verified")); });

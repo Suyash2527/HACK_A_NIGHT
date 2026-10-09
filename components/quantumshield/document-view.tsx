@@ -1,44 +1,103 @@
-"use client"
-import { BlockchainActivity } from "./blockchain-activity"
-import Link from "next/link"; import Image from "next/image"
-import { useEffect, useState } from "react"
-import { Download, RefreshCw } from "lucide-react"
-import { toast } from "sonner"
-import type { VerifyResult, UploadReceipt } from "@/types/api"
-import { apiFetch, USE_MOCKS } from "@/components/api-client"
-import { Button } from "@/components/ui/button"
-import { mockDocument, mockVerification, mockRestore, rememberMockUpload, MOCK_AUDIT } from "./mocks"
-import { useResource } from "./use-resource"
-import { useSession } from "./session"
-import { ResourceError } from "./access-state"
-import { CopyableHash, EmptyState, InlineNotice, LegalBasisView, PageSkeleton, PrintButton, RelativeTime, SectionCard, Timeline, TimelineItem, humanize } from "./design-system"
-import { IntegrityPanel } from "./integrity-panel"
-import { PageHeader } from "./page-header"
-import { UploadDialog } from "./upload-dialog"
-import { StatusBadge } from "./status-badge"
-import { formatBytes, formatIST } from "./format"
-export function DocumentView({id}:{id:string}) {
- const session=useSession();const resource=useResource("GET /api/documents/[id]",{params:{id},mock:mockDocument(id)})
- const custody=useResource("GET /api/audit",{query:{docId:id},mock:{...MOCK_AUDIT,items:MOCK_AUDIT.items.filter(e=>e.docId===id)}})
- const verification=useResource("POST /api/documents/[id]/verify",{params:{id},mock:mockDocument(id)?mockVerification(id):undefined})
- const [result,setResult]=useState<VerifyResult|null>(null),[busy,setBusy]=useState(false),[restored,setRestored]=useState<UploadReceipt|null>(null),[downloadBusy,setDownloadBusy]=useState(false)
- useEffect(()=>{const timer=setTimeout(()=>{setResult(null);setRestored(null)},0);return ()=>clearTimeout(timer)},[id])
- if(resource.loading)return <PageSkeleton/>
- if(resource.error)return <ResourceError error={resource.error} retry={resource.reload}/>
- const doc=resource.data;if(!doc)return <EmptyState title="Evidence unavailable" description="Return to your case to select an accessible record."/>
- const current=result??verification.data
- async function verify(){setBusy(true);try{const next=await apiFetch("POST /api/documents/[id]/verify",{params:{id},mock:mockVerification(id)});setResult(next);toast.info("Verification finished: "+humanize(next.status))}catch(e){toast.error(e instanceof Error?e.message:"Verification failed")}finally{setBusy(false)}}
- async function restore(reason:string){if(!doc)return;const receipt=await apiFetch("POST /api/documents/[id]/restore",{params:{id},body:{reason},mock:USE_MOCKS?mockRestore(doc):undefined});if(USE_MOCKS)rememberMockUpload(receipt,"RESTORE");setRestored(receipt);toast.success("New recovery version created",{description:"The original incident is retained. Review the new version before relying on it."})}
- async function download(){if(!doc)return;if(USE_MOCKS){toast.info("Simulated record: no evidence content is downloaded");return}setDownloadBusy(true);try{const blob=await apiFetch("GET /api/documents/[id]/content",{params:{id},query:{disposition:"attachment"}});const href=URL.createObjectURL(blob);const a=document.createElement("a");a.href=href;a.download=blob instanceof File?blob.name:doc.filename;a.click();setTimeout(()=>URL.revokeObjectURL(href),1000)}catch(e){toast.error(e instanceof Error?e.message:"Download failed")}finally{setDownloadBusy(false)}}
- const canDownload=doc.canDownload&&current?.status==="VERIFIED"
- return <div className="page-grid"><PageHeader title={doc.filename} description={humanize(doc.type)+" · Version "+doc.version+" · "+formatBytes(doc.sizeBytes)} breadcrumbs={doc.access.via==="GRANT"?[{label:"Requests",href:"/requests"},{label:"Granted evidence"}]:[{label:"Cases",href:"/cases"},{label:"Case evidence",href:"/cases/"+doc.caseId},{label:"Document"}]} action={<Button onClick={()=>void verify()} disabled={busy||verification.loading}><RefreshCw/>{busy?"Verifying…":"Verify now"}</Button>}/>{doc.access.via==="GRANT"&&<InlineNotice>Access by court order <b>{doc.access.orderRef}</b>, expires {doc.access.expiresAt?formatIST(doc.access.expiresAt):"with no expiry recorded"}. Views and downloads are audited. Text copies are stamped; PDF, DOCX and image copies carry the watermark in the filename and response header.</InlineNotice>}{restored&&<SectionCard title="Recovery version created" description="This incident remains in the custody record."><StatusBadge status={restored.verification.status}/><p className="mt-3 text-sm">Version {restored.document.version} · {restored.document.filename}</p><CopyableHash value={restored.document.sha256} label="Recovered content hash"/>{<Button asChild variant="outline"><Link href={"/documents/"+restored.document.id}>Open recovered version</Link></Button>}<p className="mt-2 text-xs text-muted-foreground">{USE_MOCKS?"Simulated recovery receipt. The demo incident is preserved; no S3 object was changed.":"Open the recovered version to finish verification and anchoring."}</p></SectionCard>}<div className="document-columns grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"><div className="space-y-5">{verification.loading?<PageSkeleton/>:verification.error?<ResourceError error={verification.error} retry={verification.reload}/>:current&&<IntegrityPanel result={current} documentName={doc.filename} canRestore={doc.canRestore&&session.allowedUploadTypes.includes(doc.type)} onRestore={restore}/>}</div><div className="space-y-5"><SectionCard title="Exhibit record" description="Sakshya · append-only evidence"><div className="grid gap-4 sm:grid-cols-2"><div><p className="section-label">Submitted by</p><p className="text-sm">{doc.uploaderName}</p><RelativeTime at={doc.createdAt}/></div><div><p className="section-label">Signature</p><p className="text-sm">{doc.signature.algorithm}</p><p className="text-xs text-muted-foreground">{doc.signature.signerName}</p></div><div><p className="section-label">Content SHA-256</p><CopyableHash value={doc.sha256}/></div><div><p className="section-label">Chunk root</p><CopyableHash value={doc.chunkRoot}/></div><div><p className="section-label">Signer public key</p><CopyableHash value={doc.signature.publicKeyHash}/></div><div><p className="section-label">Storage</p><p className="text-sm">{doc.partCount} parts · {doc.chunkCount} chunks</p></div></div><div className="no-print mt-5 flex flex-wrap gap-2"><Button variant="outline" disabled={!canDownload||downloadBusy} onClick={()=>void download()}><Download/>{doc.access.via==="GRANT"?"Watermarked copy":"Download evidence"}</Button><PrintButton label="Print certificate"/>{doc.canAddVersion&&<UploadDialog caseId={doc.caseId} parentId={id} allowedTypes={session.allowedUploadTypes}/>}</div>{!canDownload&&<p className="mt-2 text-xs text-muted-foreground">Download requires permitted access and a VERIFIED result.</p>}</SectionCard><SectionCard title="Document content"><DocumentPreview key={id+current?.status} id={id} mime={doc.mimeType} allowed={doc.canPreview&&current?.status==="VERIFIED"} tampered={current?.status==="TAMPERED"}/></SectionCard><BlockchainActivity docId={id}/><SectionCard title="Version history">{doc.versions.map(v=><div key={v.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-3 last:border-0"><div><Link href={"/documents/"+v.id} className="text-sm text-primary">Version {v.version} · {v.filename}</Link><p><RelativeTime at={v.createdAt}/></p></div><StatusBadge status={v.verificationStatus}/></div>)}</SectionCard><SectionCard title="Custody record" description="Who acted, when, and under which legal authority">{custody.loading?<p role="status">Loading custody events…</p>:custody.error?<ResourceError error={custody.error} retry={custody.reload}/>:custody.data?.items.length?<Timeline>{[...custody.data.items].sort((a,b)=>a.at.localeCompare(b.at)).map(e=><TimelineItem key={e.id} title={humanize(e.action)+" · "+e.actorName} at={e.at} danger={e.action==="DENIED"||e.action==="TAMPER_DETECTED"} detail={e.detail??undefined}><div className="mt-2"><LegalBasisView value={e.legalBasis}/><CopyableHash value={e.entryHash} label="Custody entry hash"/></div></TimelineItem>)}</Timeline>:<p className="text-sm text-muted-foreground">No permitted custody events are available.</p>}</SectionCard></div></div></div>
+"use client";
+import { BlockchainActivity } from "./blockchain-activity";
+import Link from "next/link";
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { Download, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import type { VerifyResult, UploadReceipt } from "@/types/api";
+import { apiFetch, USE_MOCKS } from "@/components/api-client";
+import { Button } from "@/components/ui/button";
+import { mockDocument, mockVerification, mockRestore, rememberMockUpload, MOCK_AUDIT } from "./offline-demo-data";
+import { useResource } from "./use-resource";
+import { useSession } from "./session";
+import { ResourceError } from "./access-state";
+import { CopyableHash, EmptyState, InlineNotice, LegalBasisView, PageSkeleton, PrintButton, RelativeTime, SectionCard, Timeline, TimelineItem, humanize } from "./design-system";
+import { IntegrityPanel } from "./integrity-panel";
+import { PageHeader } from "./page-header";
+import { UploadDialog } from "./upload-dialog";
+import { StatusBadge } from "./status-badge";
+import { formatBytes, formatIST } from "./format";
+export function DocumentView({ id }: {
+    id: string;
+}) {
+    const session = useSession();
+    const resource = useResource("GET /api/documents/[id]", { params: { id }, mock: mockDocument(id) });
+    const custody = useResource("GET /api/audit", { query: { docId: id }, mock: { ...MOCK_AUDIT, items: MOCK_AUDIT.items.filter(e => e.docId === id) } });
+    const verification = useResource("POST /api/documents/[id]/verify", { params: { id }, mock: mockDocument(id) ? mockVerification(id) : undefined });
+    const [result, setResult] = useState<VerifyResult | null>(null), [busy, setBusy] = useState(false), [restored, setRestored] = useState<UploadReceipt | null>(null), [downloadBusy, setDownloadBusy] = useState(false);
+    useEffect(() => { const timer = setTimeout(() => { setResult(null); setRestored(null); }, 0); return () => clearTimeout(timer); }, [id]);
+    if (resource.loading)
+        return <PageSkeleton />;
+    if (resource.error)
+        return <ResourceError error={resource.error} retry={resource.reload}/>;
+    const doc = resource.data;
+    if (!doc)
+        return <EmptyState title="Evidence unavailable" description="Return to your case to select an accessible record."/>;
+    const current = result ?? verification.data;
+    async function verify() { setBusy(true); try {
+        const next = await apiFetch("POST /api/documents/[id]/verify", { params: { id }, mock: mockVerification(id) });
+        setResult(next);
+        toast.info("Verification finished: " + humanize(next.status));
+    }
+    catch (e) {
+        toast.error(e instanceof Error ? e.message : "Verification failed");
+    }
+    finally {
+        setBusy(false);
+    } }
+    async function restore(reason: string) { if (!doc)
+        return; const receipt = await apiFetch("POST /api/documents/[id]/restore", { params: { id }, body: { reason }, mock: USE_MOCKS ? mockRestore(doc) : undefined }); if (USE_MOCKS)
+        rememberMockUpload(receipt, "RESTORE"); setRestored(receipt); toast.success("New recovery version created", { description: "The original incident is retained. Review the new version before relying on it." }); }
+    async function download() { if (!doc)
+        return; if (USE_MOCKS) {
+        toast.info("Simulated record: no evidence content is downloaded");
+        return;
+    } setDownloadBusy(true); try {
+        const blob = await apiFetch("GET /api/documents/[id]/content", { params: { id }, query: { disposition: "attachment" } });
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = blob instanceof File ? blob.name : doc.filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(href), 1000);
+    }
+    catch (e) {
+        toast.error(e instanceof Error ? e.message : "Download failed");
+    }
+    finally {
+        setDownloadBusy(false);
+    } }
+    const canDownload = doc.canDownload && current?.status === "VERIFIED";
+    return <div className="page-grid"><PageHeader title={doc.filename} description={humanize(doc.type) + " · Version " + doc.version + " · " + formatBytes(doc.sizeBytes)} breadcrumbs={doc.access.via === "GRANT" ? [{ label: "Requests", href: "/requests" }, { label: "Granted evidence" }] : [{ label: "Cases", href: "/cases" }, { label: "Case evidence", href: "/cases/" + doc.caseId }, { label: "Document" }]} action={<Button onClick={() => void verify()} disabled={busy || verification.loading}><RefreshCw />{busy ? "Verifying…" : "Verify now"}</Button>}/>{doc.access.via === "GRANT" && <InlineNotice>Access by court order <b>{doc.access.orderRef}</b>, expires {doc.access.expiresAt ? formatIST(doc.access.expiresAt) : "with no expiry recorded"}. Views and downloads are audited. Text copies are stamped; PDF, DOCX and image copies carry the watermark in the filename and response header.</InlineNotice>}{restored && <SectionCard title="Recovery version created" description="This incident remains in the custody record."><StatusBadge status={restored.verification.status}/><p className="mt-3 text-sm">Version {restored.document.version} · {restored.document.filename}</p><CopyableHash value={restored.document.sha256} label="Recovered content hash"/>{<Button asChild variant="outline"><Link href={"/documents/" + restored.document.id}>Open recovered version</Link></Button>}<p className="mt-2 text-xs text-muted-foreground">{USE_MOCKS ? "Simulated recovery receipt. The demo incident is preserved; no S3 object was changed." : "Open the recovered version to finish verification and anchoring."}</p></SectionCard>}<div className="document-columns grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"><div className="space-y-5">{verification.loading ? <PageSkeleton /> : verification.error ? <ResourceError error={verification.error} retry={verification.reload}/> : current && <IntegrityPanel result={current} documentName={doc.filename} canRestore={doc.canRestore && session.allowedUploadTypes.includes(doc.type)} onRestore={restore}/>}</div><div className="space-y-5"><SectionCard title="Exhibit record" description="Sakshya · append-only evidence"><div className="grid gap-4 sm:grid-cols-2"><div><p className="section-label">Submitted by</p><p className="text-sm">{doc.uploaderName}</p><RelativeTime at={doc.createdAt}/></div><div><p className="section-label">Signature</p><p className="text-sm">{doc.signature.algorithm}</p><p className="text-xs text-muted-foreground">{doc.signature.signerName}</p></div><div><p className="section-label">Content SHA-256</p><CopyableHash value={doc.sha256}/></div><div><p className="section-label">Chunk root</p><CopyableHash value={doc.chunkRoot}/></div><div><p className="section-label">Signer public key</p><CopyableHash value={doc.signature.publicKeyHash}/></div><div><p className="section-label">Storage</p><p className="text-sm">{doc.partCount} parts · {doc.chunkCount} chunks</p></div></div><div className="no-print mt-5 flex flex-wrap gap-2"><Button variant="outline" disabled={!canDownload || downloadBusy} onClick={() => void download()}><Download />{doc.access.via === "GRANT" ? "Watermarked copy" : "Download evidence"}</Button><PrintButton label="Print certificate"/>{doc.canAddVersion && <UploadDialog caseId={doc.caseId} parentId={id} allowedTypes={session.allowedUploadTypes}/>}</div>{!canDownload && <p className="mt-2 text-xs text-muted-foreground">Download requires permitted access and a VERIFIED result.</p>}</SectionCard><SectionCard title="Document content"><DocumentPreview key={id + current?.status} id={id} mime={doc.mimeType} allowed={doc.canPreview && current?.status === "VERIFIED"} tampered={current?.status === "TAMPERED"}/></SectionCard><BlockchainActivity docId={id}/><SectionCard title="Version history">{doc.versions.map(v => <div key={v.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-3 last:border-0"><div><Link href={"/documents/" + v.id} className="text-sm text-primary">Version {v.version} · {v.filename}</Link><p><RelativeTime at={v.createdAt}/></p></div><StatusBadge status={v.verificationStatus}/></div>)}</SectionCard><SectionCard title="Custody record" description="Who acted, when, and under which legal authority">{custody.loading ? <p role="status">Loading custody events…</p> : custody.error ? <ResourceError error={custody.error} retry={custody.reload}/> : custody.data?.items.length ? <Timeline>{[...custody.data.items].sort((a, b) => a.at.localeCompare(b.at)).map(e => <TimelineItem key={e.id} title={humanize(e.action) + " · " + e.actorName} at={e.at} danger={e.action === "DENIED" || e.action === "TAMPER_DETECTED"} detail={e.detail ?? undefined}><div className="mt-2"><LegalBasisView value={e.legalBasis}/><CopyableHash value={e.entryHash} label="Custody entry hash"/></div></TimelineItem>)}</Timeline> : <p className="text-sm text-muted-foreground">No permitted custody events are available.</p>}</SectionCard></div></div></div>;
 }
-function DocumentPreview({id,mime,allowed,tampered}:{id:string;mime:string;allowed:boolean;tampered:boolean}){
- const [url,setUrl]=useState<string|null>(null),[text,setText]=useState<string|null>(null),[error,setError]=useState(""),[busy,setBusy]=useState(false)
- useEffect(()=>()=>{if(url)URL.revokeObjectURL(url)},[url])
- async function load(){setBusy(true);setError("");try{const blob=await apiFetch("GET /api/documents/[id]/content",{params:{id},query:{disposition:"inline"}});if(mime==="text/plain")setText(await blob.text());else setUrl(URL.createObjectURL(blob))}catch(e){setError(e instanceof Error?e.message:"Content unavailable")}finally{setBusy(false)}}
- if(tampered)return <p role="alert" className="text-sm text-tampered">Tampered. Content withheld.</p>
- if(USE_MOCKS)return <p className="text-xs text-muted-foreground">Demo record. No plaintext is loaded.</p>
- if(!allowed)return <p className="text-xs text-muted-foreground">Preview requires permitted access and a VERIFIED result.</p>
- return <div className="space-y-3">{!url&&text===null&&<Button variant="outline" disabled={busy} onClick={()=>void load()}>{busy?"Loading…":"Open preview"}</Button>}{error&&<p role="alert" className="text-sm text-tampered">{error}</p>}{text!==null&&<pre className="max-h-[600px] overflow-auto whitespace-pre-wrap break-words border p-3 font-mono text-xs">{text}</pre>}{url&&(mime.startsWith("image/")?<Image src={url} unoptimized width={1000} height={1400} alt="Document content" className="max-h-[600px] max-w-full object-contain"/>:mime==="application/pdf"?<iframe title="Document preview" src={url} className="h-[600px] w-full border"/>:<p className="text-xs text-muted-foreground">Preview unavailable for this file type. Use Download.</p>)}</div>
+function DocumentPreview({ id, mime, allowed, tampered }: {
+    id: string;
+    mime: string;
+    allowed: boolean;
+    tampered: boolean;
+}) {
+    const [url, setUrl] = useState<string | null>(null), [text, setText] = useState<string | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+    useEffect(() => () => { if (url)
+        URL.revokeObjectURL(url); }, [url]);
+    async function load() { setBusy(true); setError(""); try {
+        const blob = await apiFetch("GET /api/documents/[id]/content", { params: { id }, query: { disposition: "inline" } });
+        if (mime === "text/plain")
+            setText(await blob.text());
+        else
+            setUrl(URL.createObjectURL(blob));
+    }
+    catch (e) {
+        setError(e instanceof Error ? e.message : "Content unavailable");
+    }
+    finally {
+        setBusy(false);
+    } }
+    if (tampered)
+        return <p role="alert" className="text-sm text-tampered">Tampered. Content withheld.</p>;
+    if (USE_MOCKS)
+        return <p className="text-xs text-muted-foreground">Demo record. No plaintext is loaded.</p>;
+    if (!allowed)
+        return <p className="text-xs text-muted-foreground">Preview requires permitted access and a VERIFIED result.</p>;
+    return <div className="space-y-3">{!url && text === null && <Button variant="outline" disabled={busy} onClick={() => void load()}>{busy ? "Loading…" : "Open preview"}</Button>}{error && <p role="alert" className="text-sm text-tampered">{error}</p>}{text !== null && <pre className="max-h-[600px] overflow-auto whitespace-pre-wrap break-words border p-3 font-mono text-xs">{text}</pre>}{url && (mime.startsWith("image/") ? <Image src={url} unoptimized width={1000} height={1400} alt="Document content" className="max-h-[600px] max-w-full object-contain"/> : mime === "application/pdf" ? <iframe title="Document preview" src={url} className="h-[600px] w-full border"/> : <p className="text-xs text-muted-foreground">Preview unavailable for this file type. Use Download.</p>)}</div>;
 }
