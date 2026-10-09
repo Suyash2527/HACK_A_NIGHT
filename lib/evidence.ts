@@ -4,16 +4,17 @@ import { randomUUID } from "node:crypto";
 import {
   ALLOWED_UPLOAD_MIME, MAX_UPLOAD_BYTES, STORAGE_PART_BYTES,
   type Accessor, type AllowedMime, type AuditAction, type CheckStatus, type DocType, type DocumentDetail, type DocumentSummary,
-  type LegalBasis, type PartCheck, type Role, type UploadReceipt, type VerifyResult, type VerifyStatus,
+  type LegalBasis, type PartCheck, type Role, type ScanDetail, type UploadReceipt, type VerifyResult, type VerifyStatus,
 } from "@/types/api";
-import { courtOrderBasis, defaultBasis, logDenied, writeAudit } from "./audit";
+import { courtOrderBasis, defaultBasis, logDenied, systemBasis, writeAudit } from "./audit";
 import { deriveUserDsaKeys, canonicalJson, signDocument, systemKeysFromEnv, verifyCanonical, type DocPayload, type WrappedDek } from "./crypto/pqc";
 import { openDocument, sealDocument } from "./crypto/parts";
+import { scheduleAnchoring } from "./anchoring";
 import { getChain, type ChainService } from "./chain";
 import { getDb, type Row, type Tx } from "./db";
 import { forbidden, invalid, notFound, requireRows, tampered, tooLarge } from "./errors";
 import { buildChunkTree, buildManifest, docLeaf, localizeTamper, sha256Hex, verifyProof } from "./merkle";
-import { canRestoreDoc, requireUploadType } from "./policy";
+import { canRestoreDoc, canRunScan, requireUploadType } from "./policy";
 import type { SessionUser } from "./session";
 import { getPartStore, type PartStore } from "./storage/part-store";
 
@@ -32,6 +33,12 @@ export interface EvidenceDeps { store?: PartStore; chain?: ChainReader; chainSer
 /** The blockchain service, or null when no chain is configured (every chain call is then skipped). */
 const chainOf = async (d?: EvidenceDeps): Promise<ChainService | null> => (d && "chainService" in d ? d.chainService ?? null : await getChain());
 const storeOf = (d?: EvidenceDeps) => d?.store ?? getPartStore();
+/** On-chain batch-root reader: injected in tests, otherwise the live chain service (undefined when no chain is configured). */
+const readerOf = async (d?: EvidenceDeps): Promise<ChainReader | undefined> => {
+  if (d?.chain) return d.chain;
+  const c = await chainOf(d);
+  return c ? (id) => c.batchRoot(id) : undefined;
+};
 
 const iso = (v: unknown) => new Date(v as string).toISOString();
 const SAFE_NAME = /[^A-Za-z0-9._ -]/g;
@@ -141,6 +148,7 @@ export async function uploadDocument(user: SessionUser, input: UploadInput, deps
   //    just now, so the verifier attests "valid" with a hash of the evidence; the chain does not verify the PQ signature itself.
   const chain = await chainOf(deps);
   if (chain) {
+    scheduleAnchoring(); // batches everything uploaded in the next few seconds into one Merkle root
     const evidence = canonicalJson({ docId, alg: "ML-DSA-65", signatureHash: sha256Hex(Buffer.from(signed.signature, "base64")), publicKeyHash: keyHash(signer.publicKey), result: "valid" });
     void chain.registerRecord({ docId, caseId: input.caseId, filename, version, parentDocId: parent?.id ?? null, sha256: sealed.sha256, chunkRoot: chunks.root,
       signatureB64: signed.signature, signerKeyHash: keyHash(signer.publicKey) });
@@ -261,7 +269,9 @@ export async function verifyDocumentById(user: SessionUser, docId: string, deps?
     await logDenied(user.id, "verification refused: document not accessible", { docId });
     throw e;
   });
-  const { result } = await verifyLoaded(loaded, store, deps?.chain);
+  const { result } = await verifyLoaded(loaded, store, await readerOf(deps));
+  const explorer = await chainOf(deps);
+  if (result.anchor && explorer) result.anchor.explorerUrl = explorer.explorerUrl(result.anchor.txHash);
   return db.withUser(user.id, async (tx) => {
     result.lastAccessors = await accessors(tx, docId);
     const basis = await basisFor(tx, user, docId);
@@ -290,7 +300,7 @@ export async function readContent(user: SessionUser, docId: string, disposition:
     await logDenied(user.id, `${disposition === "inline" ? "view" : "download"} refused: document not accessible`, { docId });
     throw e;
   });
-  const out = await verifyLoaded(loaded, store, deps?.chain);
+  const out = await verifyLoaded(loaded, store, await readerOf(deps));
   return db.withUser(user.id, async (tx) => {
     out.result.lastAccessors = await accessors(tx, docId);
     const basis = await basisFor(tx, user, docId);
@@ -323,6 +333,80 @@ export async function restoreDocument(user: SessionUser, docId: string, reason: 
     caseId: row.case_id, type: row.type, filename: row.filename, mimeType: row.mime_type, bytes: opened.plaintext,
     parentId: row.id, auditAction: "RESTORE", auditDetail: `restored from retained original of ${row.id}: ${reason.trim().slice(0, 200)}`,
   }, deps);
+}
+
+// ───────────────────────────── integrity scans (court roles; synchronous)
+export const MAX_SCAN_DOCS = 150;
+const SCAN_CONCURRENCY = 6;
+
+export async function runIntegrityScan(user: SessionUser, caseId?: string, deps?: EvidenceDeps): Promise<ScanDetail> {
+  if (!canRunScan(user.role)) {
+    await logDenied(user.id, "integrity scan refused: court roles only");
+    throw forbidden("Only the court can run integrity scans");
+  }
+  const db = await getDb();
+  const store = storeOf(deps);
+  const reader = await readerOf(deps);
+  const startedAt = new Date();
+
+  const loaded = await db.withUser(user.id, async (tx) => {
+    if (caseId) requireRows((await tx.query("SELECT id FROM cases WHERE id = $1", [caseId])).rows, "Case");
+    const ids = (await tx.query<{ id: string }>(`SELECT id FROM documents ${caseId ? "WHERE case_id = $1" : ""} ORDER BY created_at, id LIMIT ${MAX_SCAN_DOCS + 1}`, caseId ? [caseId] : [])).rows;
+    if (ids.length > MAX_SCAN_DOCS) throw invalid(`A scan covers at most ${MAX_SCAN_DOCS} documents; scan one case at a time`);
+    const out: LoadedDoc[] = [];
+    for (const { id } of ids) out.push(await loadDoc(tx, id));
+    return out;
+  });
+
+  // fetch + verify outside any transaction, a few documents at a time
+  const outcomes: VerifyResult[] = new Array(loaded.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, loaded.length) }, async () => {
+    for (let i = next++; i < loaded.length; i = next++) outcomes[i] = (await verifyLoaded(loaded[i], store, reader)).result;
+  }));
+
+  const saved = await db.withUser(user.id, async (tx) => {
+    const basis = defaultBasis(user.role);
+    const events: { docId: string; caseId: string; filename: string; entryHash: string; ranges: string }[] = [];
+    for (let i = 0; i < loaded.length; i++) {
+      const row = loaded[i].row, result = outcomes[i];
+      result.lastAccessors = await accessors(tx, row.id);
+      await tx.query("INSERT INTO verification_results (doc_id, status, result, checked_by) VALUES ($1,$2,$3::jsonb,$4)", [row.id, result.status, JSON.stringify(result), user.id]);
+      if (result.status === "TAMPERED") {
+        const ranges = result.tamperRanges.map((r) => `chunk ${r.chunkIndex}`).join(", ") || "part mismatch";
+        const e = await writeAudit(tx, { actorId: user.id, action: "TAMPER_DETECTED", docId: row.id, caseId: row.case_id, basis,
+          detail: `scan: tampered: ${result.tamperRanges.map((r) => `chunk ${r.chunkIndex} [${r.byteStart}-${r.byteEnd}]`).join(", ") || "part/hash mismatch"}` });
+        events.push({ docId: row.id, caseId: row.case_id, filename: row.filename, entryHash: e.entryHash, ranges });
+      }
+    }
+    const tamperedCount = outcomes.filter((o) => o.status === "TAMPERED").length;
+    await writeAudit(tx, { actorId: user.id, action: "SCAN", caseId: caseId ?? null, basis: systemBasis(), detail: `scanned ${loaded.length} document(s): ${tamperedCount} tampered` });
+    const rec = (await tx.query<{ id: string }>(
+      "INSERT INTO integrity_scans (requested_by, case_id, total, started_at, results) VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING id",
+      [user.id, caseId ?? null, loaded.length, startedAt.toISOString(), JSON.stringify(loaded.map((l, i) => ({ docId: l.row.id, verification: outcomes[i] })))])).rows[0];
+    return { id: rec.id, events };
+  });
+
+  const chain = await chainOf(deps);
+  if (chain) for (const e of saved.events)
+    void chain.auditEvent({ subject: { docId: e.docId, caseId: e.caseId }, action: "TAMPER_DETECTED", actorId: user.id, entryHash: e.entryHash, label: `TAMPER DETECTED in ${e.filename}: ${e.ranges}` });
+  return getIntegrityScan(user, saved.id);
+}
+
+export async function getIntegrityScan(user: SessionUser, scanId: string): Promise<ScanDetail> {
+  if (!canRunScan(user.role)) { await logDenied(user.id, "integrity scan results refused: court roles only"); throw forbidden("Only the court can read integrity scans"); }
+  const db = await getDb();
+  return db.withUser(user.id, async (tx) => {
+    const s = requireRows((await tx.query("SELECT * FROM integrity_scans WHERE id = $1", [scanId])).rows, "Scan")[0];
+    const stored = s.results as { docId: string; verification: VerifyResult }[];
+    const ids = stored.map((r) => r.docId);
+    const rows = ids.length ? (await tx.query(`${DOC_SELECT} WHERE d.id = ANY($1::uuid[])`, [ids])).rows : [];
+    const byId = new Map(rows.map((r) => [r.id as string, r]));
+    return {
+      id: s.id, status: "completed", checked: stored.length, total: Number(s.total), startedAt: iso(s.started_at), completedAt: iso(s.completed_at),
+      results: stored.filter((r) => byId.has(r.docId)).map((r) => ({ document: toSummary(byId.get(r.docId)!), verification: r.verification })),
+    } satisfies ScanDetail;
+  });
 }
 
 // ───────────────────────────── queries for routes

@@ -1,7 +1,7 @@
 // Database bootstrap for Amazon RDS (run once on the server): applies db/schema.sql, sets the app logins, seeds demo identities.
 //   node migrate.mjs            (reads ADMIN_DATABASE_URL, APP_DB_PASSWORD, ANCHOR_DB_PASSWORD, PGSSL_CA_FILE from the environment)
 // Idempotent: skips the schema if it already exists. Passwords are never printed.
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import pg from "pg";
 
 const env = process.env;
@@ -15,6 +15,15 @@ if (!has) {
   await client.query(readFileSync(new URL("./schema.sql", import.meta.url), "utf8"));
   console.log("schema applied");
 } else console.log("schema already present");
+
+// idempotent patches (db/patches/*.sql, packaged next to this script as ./patches): applied on every run, in name order
+const patchDir = new URL("./patches/", import.meta.url);
+if (existsSync(patchDir)) {
+  for (const f of readdirSync(patchDir).filter((n) => n.endsWith(".sql")).sort()) {
+    await client.query(readFileSync(new URL(f, patchDir), "utf8"));
+    console.log(`patch applied: ${f}`);
+  }
+}
 
 // login passwords for the two service roles (quoted literal; values come from the environment, never from user input)
 const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;

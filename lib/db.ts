@@ -4,7 +4,7 @@
 // Every call runs in a transaction that FIRST binds the caller's identity:
 //   SELECT set_config('app.user_id', <uuid>, true)      -- txn-local, can never leak across pooled connections
 // Row-level security policies key on that value, so even a buggy query cannot read another user's rows.
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,7 +28,12 @@ const assertUuid = (v: string) => {
   if (!UUID.test(v)) throw new Error("invalid user id");
 };
 
-const schemaSql = () => readFileSync(path.join(process.cwd(), "db", "schema.sql"), "utf8");
+/** Base schema followed by the idempotent patches in db/patches (applied in name order). */
+const schemaSql = () => {
+  const dir = path.join(process.cwd(), "db", "patches");
+  const patches = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().map((f) => readFileSync(path.join(dir, f), "utf8"));
+  return [readFileSync(path.join(process.cwd(), "db", "schema.sql"), "utf8"), ...patches].join(String.fromCharCode(10));
+};
 
 // ───────────────────────────── PGlite (embedded) driver
 type PGliteLike = {

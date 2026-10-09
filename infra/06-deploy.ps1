@@ -35,6 +35,7 @@ New-Item -ItemType Directory -Force "$pkg\.next" | Out-Null
 & robocopy ".next\static" "$pkg\.next\static" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 if (Test-Path "public") { & robocopy "public" "$pkg\public" /E /NFL /NDL /NJH /NJS /NP | Out-Null }
 Copy-Item "db\schema.sql" "$pkg\schema.sql"; Copy-Item "scripts\migrate.mjs" "$pkg\migrate.mjs"
+New-Item -ItemType Directory -Force "$pkg\patches" | Out-Null; Copy-Item "db\patches\*.sql" "$pkg\patches"
 $demoJson = (& npx.cmd tsx -e "import {DEMO_USERS} from './lib/demo-users'; process.stdout.write(JSON.stringify(DEMO_USERS))") -join ""
 [IO.File]::WriteAllText("$pkg\demo-users.json", $demoJson, (New-Object Text.UTF8Encoding($false)))   # UTF-8 WITHOUT a byte-order mark
 $tgz = Join-Path $Root ".deploy\release-$stamp.tgz"

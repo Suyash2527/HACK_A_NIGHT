@@ -49,6 +49,7 @@ export interface RegistryLike {
   sealCaseManifest(caseRef: string, version: number, root: string, count: number): Promise<TxLike>;
   logAuditEvent(subjectId: string, action: number, actorHash: string, eventHash: string): Promise<TxLike>;
   anchorBatch(batchId: number | bigint, root: string, signatureHash: string, docCount: number): Promise<TxLike>;
+  getBatch?(batchId: number | bigint): Promise<{ root: string; anchoredAt: bigint | number }>;
 }
 export interface TxLike { hash: string; wait(confirmations?: number): Promise<{ blockNumber: number; status?: number | null } | null> }
 
@@ -64,8 +65,8 @@ export class ChainService {
   }
 
   /** Serial queue: one broadcast at a time so nonces never collide. Never throws to the caller. */
-  private enqueue(kind: ChainTxKind, label: string, ctx: { docId?: string; caseId?: string }, send: () => Promise<TxLike>): Promise<void> {
-    const run = this.tail.then(async () => {
+  private enqueue(kind: ChainTxKind, label: string, ctx: { docId?: string; caseId?: string }, send: () => Promise<TxLike>): Promise<string | null> {
+    const run = this.tail.then(async (): Promise<string | null> => {
       try {
         const tx = await send();
         const hash = tx.hash.toLowerCase();
@@ -78,8 +79,10 @@ export class ChainService {
           (e) => this.store.setStatus(hash, "failed", undefined, String((e as Error).message)),
         ).catch((e) => console.error("[chain] could not record confirmation", e));
         await confirm;
+        return hash;
       } catch (e) {
         console.error(`[chain] ${kind} failed: ${(e as Error).message}`);
+        return null;
       }
     });
     this.tail = run.catch(() => undefined);
@@ -119,6 +122,19 @@ export class ChainService {
   }
 
   explorerUrl(txHash: string) { return explorerTxUrl(this.profile, txHash); }
+
+  /** Root stored on-chain for a batch (plain lowercase hex), or null when the batch is not (yet) anchored there. Confirmed roots are immutable, so they are cached. */
+  private roots = new Map<number, string>();
+  async batchRoot(batchId: number): Promise<string | null> {
+    const hit = this.roots.get(batchId);
+    if (hit) return hit;
+    if (!this.registry.getBatch) return null;
+    const b = await this.registry.getBatch(batchId);
+    if (!b || Number(b.anchoredAt) === 0) return null;
+    const root = String(b.root).replace(/^0x/, "").toLowerCase();
+    this.roots.set(batchId, root);
+    return root;
+  }
 }
 
 // ───────────────────────────── configuration
