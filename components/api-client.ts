@@ -1,6 +1,6 @@
 import type { ApiErrorBody, ApiRoute, ApiRoutes } from "@/types/api"
 
-export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false"
+export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true"
 type RouteResult<R extends ApiRoute> = ApiRoutes[R]["res"]
 type BodyFor<R extends ApiRoute> = ApiRoutes[R] extends { body: infer B } ? { body: B } : { body?: never }
 type QueryFor<R extends ApiRoute> = ApiRoutes[R] extends { query: infer Q } ? { query?: Q } : { query?: never }
