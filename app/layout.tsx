@@ -1,11 +1,11 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
 
-const geistSans = Geist({ variable: "--font-sans", subsets: ["latin"] })
-const geistMono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"] })
+const geistSans = IBM_Plex_Sans({ variable: "--font-plex-sans", subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" })
+const geistMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500"], display: "swap" })
 
 export const metadata: Metadata = { title: { default: "Sakshya", template: "%s · Sakshya" }, description: "Traceable judicial evidence with off-chain post-quantum signatures and verifiable integrity", icons: { icon: "/icon.svg" } }
 

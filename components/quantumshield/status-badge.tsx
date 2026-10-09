@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, CircleDashed, Clock3, HelpCircle } from "l
 import type { VerifyStatus } from "@/types/api"
 const details = {
  VERIFIED:{label:"Verified",icon:CheckCircle2,tone:"tone-verified"},
- TAMPERED:{label:"Tampered",icon:AlertTriangle,tone:"tone-danger tamper-pulse"},
+ TAMPERED:{label:"Tampered",icon:AlertTriangle,tone:"tone-danger"},
  PENDING_ANCHOR:{label:"Pending anchor",icon:Clock3,tone:"tone-pending"},
  UNANCHORED:{label:"Not anchored",icon:CircleDashed,tone:"tone-neutral"},
  ERROR:{label:"Could not verify",icon:HelpCircle,tone:"tone-danger"},
