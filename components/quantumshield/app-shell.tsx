@@ -15,12 +15,12 @@ import { roleLabel } from "./format";
 import { TrustStrip } from "./trust-strip";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
-export function roleHome(role: Role) { return role === "COMPLAINANT" ? ("/dashboard") : role === "DEFENCE_ADVOCATE" ? "/requests" : "/dashboard"; }
+export function roleHome(role: Role) { return role === "DEFENCE_ADVOCATE" ? "/requests" : "/dashboard"; }
 function linksFor(role: Role) {
     if (role === "COMPLAINANT")
         return [{ href: "/dashboard", label: "My case progress" }];
     if (role === "DEFENCE_ADVOCATE")
-        return [{ href: "/requests", label: "Document requests" }, ...([])];
+        return [{ href: "/requests", label: "Document requests" }];
     const items = [{ href: "/dashboard", label: "Home" }, { href: "/cases", label: role === "POLICE" ? "My cases" : role === "FORENSIC_LAB" ? "Assigned cases" : "Cases" }];
     if (role === "JUDGE")
         items.push({ href: "/requests", label: "Requests queue" });
@@ -56,5 +56,5 @@ export function AppShell({ children }: {
             catch {
                 toast.error("Sign out failed. Retry.");
             }
-        }}>Logout</Button></div><span className="w-full text-xs text-muted-foreground sm:hidden">Station: {user.station}</span></header><aside className="fixed bottom-0 left-0 top-12 hidden w-44 border-r bg-background pt-5 lg:block">{navigation}</aside><div className="app-body min-w-0 lg:pl-44"><main id="main-content" className="min-h-[75vh] min-w-0 p-3 sm:p-5">{restricted ? <AccessDenied /> : children}</main><TrustStrip /></div></div></SessionContext.Provider>;
+        }}>Logout</Button></div><span className="w-full text-xs text-muted-foreground sm:hidden">Station: {user.station}</span></header><aside className="fixed bottom-0 left-0 top-12 hidden w-44 border-r bg-background pt-5 lg:block">{navigation}</aside><div className="app-body min-w-0 lg:pl-44"><main id="main-content" className="min-h-[75vh] min-w-0 p-3 sm:p-5">{restricted ? <AccessDenied /> : children}</main>{user.role !== "COMPLAINANT" && <TrustStrip />}</div></div></SessionContext.Provider>;
 }

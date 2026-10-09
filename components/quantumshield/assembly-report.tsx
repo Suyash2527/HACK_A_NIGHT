@@ -28,7 +28,7 @@ export function AssemblyReportDialog({ caseId, disabled = false }: {
             setBusy(false);
         }
     }
-    const complete = !!report && report.documents.length > 0 && report.documents.every(d => d.verification.status === "VERIFIED") && report.totals.parts === report.totals.partsVerified && report.manifest?.onChain === "pass" && report.manifest.root === report.manifest.recomputed;
+    const complete = !!report && report.documents.length > 0 && report.documents.every(d => d.verification.status === "VERIFIED") && report.totals.parts === report.totals.partsVerified && (report.scope === "GRANTED_DOCUMENTS" || (report.manifest?.onChain === "pass" && report.manifest.root === report.manifest.recomputed));
     async function download() {
         if (!report?.bundle || !complete)
             return;
