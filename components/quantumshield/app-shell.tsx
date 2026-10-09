@@ -6,7 +6,7 @@ import { Menu } from "lucide-react"
 import { toast } from "sonner"
 import type { Role } from "@/types/api"
 import { apiFetch, ApiClientError, USE_MOCKS } from "@/components/api-client"
-import { MOCK_SESSION, MOCK_CASE, MOCK_GRANTED_DOCUMENT } from "./mocks"
+import { currentMockSession, MOCK_CASE, MOCK_GRANTED_DOCUMENT } from "./mocks"
 import { Brand } from "./brand"
 import { SessionContext } from "./session"
 import { useResource } from "./use-resource"
@@ -28,7 +28,7 @@ function linksFor(role:Role) {
  return items
 }
 export function AppShell({children}:{children:ReactNode}) {
- const session=useResource("GET /api/auth/session",{mock:MOCK_SESSION});const pathname=usePathname();const router=useRouter();const [mobile,setMobile]=useState(false)
+ const session=useResource("GET /api/auth/session",{mock:currentMockSession()});const pathname=usePathname();const router=useRouter();const [mobile,setMobile]=useState(false)
  useEffect(()=>{if(session.error instanceof ApiClientError&&session.error.status===401)router.replace("/login")},[session.error,router])
  if(session.loading) return <main className="p-4"><PageSkeleton/></main>
  if(session.error||!session.data) return <ResourceError error={session.error||new Error("No session")} retry={session.reload}/>

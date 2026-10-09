@@ -31,7 +31,7 @@ export function CasesView(){const session=useSession();const resource=useResourc
  {key:"open",label:"",render:c=><Button asChild variant="ghost" size="icon-sm"><Link href={"/cases/"+c.id} aria-label={"Open case "+c.firNo}><ArrowRight/></Link></Button>}
  ]}/>:<EmptyState title="Your case register is ready" description={session.canCreateCase?"Register a case to begin a traceable evidence record.":"Ask your case administrator to assign your first case."}/>}</SectionCard><FirCheckBox/></div>
 }
-function CreateCase({onCreated}:{onCreated:(c:CaseDetail)=>void}) {
+export function CreateCase({onCreated}:{onCreated:(c:CaseDetail)=>void}) {
  const session=useSession()
  const [open,setOpen]=useState(false),[email,setEmail]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[created,setCreated]=useState<CaseDetail|null>(null)
  async function submit(event:React.FormEvent){event.preventDefault();if(busy||created)return;setBusy(true);setError("");const body:CreateCaseRequest=email.trim()?{complainantEmail:email.trim()}:{};try{const c=await apiFetch("POST /api/cases",{body,mock:USE_MOCKS?mockRegisterCase(session):undefined});if(USE_MOCKS)rememberMockCase(c);setCreated(c);toast.success("Case registered",{description:c.firNo})}catch(e){setError(e instanceof Error?e.message:"Could not register case");toast.error("Case registration failed")}finally{setBusy(false)}}

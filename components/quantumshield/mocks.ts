@@ -17,7 +17,7 @@ const MOCK_SESSIONS: Record<Role, Session> = {
   COMPLAINANT: { user: { id: "99999999-9999-4999-8999-999999999999", name: "Ananya More", email: "ananya.more@demo.invalid", role: "COMPLAINANT", station: "Gangapur Police Station", clearance: 1 }, canCreateCase: false, allowedUploadTypes: [], assistantEnabled: false },
 }
 const configuredRole = process.env.NEXT_PUBLIC_DEMO_ROLE as Role | undefined
-export const MOCK_SESSION: Session = MOCK_SESSIONS[configuredRole && configuredRole in MOCK_SESSIONS ? configuredRole : "POLICE"]
+export let MOCK_SESSION: Session = MOCK_SESSIONS[configuredRole && configuredRole in MOCK_SESSIONS ? configuredRole : "POLICE"]
 
 const counts = (verified: number, tampered = 0) => ({ VERIFIED: verified, TAMPERED: tampered, PENDING_ANCHOR: 0, UNANCHORED: 0, ERROR: 0, unchecked: 0 })
 export const MOCK_CASES: Page<CaseSummary> = { items: [
@@ -129,3 +129,6 @@ export function mockFirCheck(firNo:string):FirCheck {
  return {firNo,genuine:!!found,stationCode:found?found.firNo.split("/")[0]:null,issuedAt:found?.createdAt??null}
 }
 export const MOCK_FIR_REGISTER: FirRegisterResult={status:"pass",checkedEntries:329,checkedAt:"2026-10-10T05:04:00Z",firstBrokenSeq:null,problem:null}
+
+export function selectMockRole(role:Role):Session { MOCK_SESSION=MOCK_SESSIONS[role]; if(typeof window!=="undefined")sessionStorage.setItem("sakshya-demo-role",role); return MOCK_SESSION }
+export function currentMockSession():Session { if(typeof window!=="undefined"){const role=sessionStorage.getItem("sakshya-demo-role") as Role|null; if(role&&role in MOCK_SESSIONS)MOCK_SESSION=MOCK_SESSIONS[role]} return MOCK_SESSION }
