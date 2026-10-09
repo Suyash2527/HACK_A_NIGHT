@@ -2,17 +2,53 @@
 import Link from "next/link";
 import { LockKeyhole, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "./design-system";
 import { ApiClientError } from "@/components/api-client";
-export function AccessDenied({ audited = false }: {
-    audited?: boolean;
-}) { return <EmptyState title="Access denied" description={audited ? "This attempt has been recorded. Ask your case administrator to review your assignment." : "This view is not available to your role. Use the permitted sections in your navigation, or ask your administrator to review your assignment."} icon={<LockKeyhole className="size-6 text-tampered"/>} action={<Button variant="outline" asChild><Link href="/login">Return to sign in</Link></Button>}/>; }
-export function ResourceError({ error, retry }: {
-    error: Error;
-    retry: () => void;
-}) {
-    const status = error instanceof ApiClientError ? error.status : 0;
-    if (status === 403)
-        return <AccessDenied audited/>;
-    return <EmptyState title={status === 401 ? "Your session has ended" : status === 404 ? "Record unavailable" : "We couldn’t load this view"} description={status === 404 ? "Check the link or return to your permitted workspace. No evidence metadata is disclosed." : status === 503 ? "This service is temporarily unavailable. No verification result has been changed; retry when the service is ready." : "No verification result has been changed. Try again, or sign in to renew your session."} icon={<AlertTriangle className="size-6 text-tampered"/>} action={<div className="flex gap-2"><Button onClick={retry}>Try again</Button><Button variant="outline" asChild><Link href="/login">Sign in</Link></Button></div>}/>;
+import { EmptyState } from "./design-system";
+import { useI18n } from "./i18n";
+
+export function AccessDenied({ audited = false }: { audited?: boolean }) {
+  const { t } = useI18n();
+  return (
+    <div className="flex items-start gap-3">
+      <LockKeyhole className="mt-6 size-6 shrink-0 text-tampered" />
+      <EmptyState
+        title={t("err.deniedTitle")}
+        description={t(audited ? "err.deniedAudited" : "err.deniedRole")}
+        action={<Button variant="outline" asChild><Link href="/login">{t("common.signIn")}</Link></Button>}
+      />
+    </div>
+  );
+}
+
+export function ResourceError({ error, retry }: { error: Error; retry: () => void }) {
+  const { t } = useI18n();
+  const status = error instanceof ApiClientError ? error.status : 0;
+  if (status === 403) return <AccessDenied audited />;
+  const [title, help] =
+    status === 401 ? (["err.sessionEnded", "err.genericHelp"] as const)
+    : status === 404 ? (["err.notFound", "err.notFoundHelp"] as const)
+    : status === 503 ? (["err.serviceDown", "err.serviceDownHelp"] as const)
+    : (["err.generic", "err.genericHelp"] as const);
+  return (
+    <div className="flex items-start gap-3">
+      <AlertTriangle className="mt-6 size-6 shrink-0 text-tampered" />
+      <EmptyState
+        title={t(title)}
+        description={t(help)}
+        action={<div className="flex gap-2"><Button onClick={retry}>{t("common.tryAgain")}</Button><Button variant="outline" asChild><Link href="/login">{t("common.signIn")}</Link></Button></div>}
+      />
+    </div>
+  );
+}
+
+/** Shown by app/not-found.tsx, which is a server component and cannot call hooks itself. */
+export function RecordUnavailable() {
+  const { t } = useI18n();
+  return (
+    <EmptyState
+      title={t("notfound.title")}
+      description={t("notfound.help")}
+      action={<Button asChild><Link href="/login">{t("common.signIn")}</Link></Button>}
+    />
+  );
 }

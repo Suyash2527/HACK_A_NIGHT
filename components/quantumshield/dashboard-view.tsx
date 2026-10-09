@@ -1,5 +1,4 @@
 "use client";
-import { BlockchainActivity } from "./blockchain-activity";
 import Link from "next/link";
 import type { CaseSummary } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -7,30 +6,70 @@ import { useSession } from "./session";
 import { useResource } from "./use-resource";
 import { ResourceError } from "./access-state";
 import { PageHeader } from "./page-header";
-import { DataTable, PageSkeleton, SectionCard, StatCard, RelativeTime, humanize } from "./design-system";
+import { DataTable, InlineNotice, PageSkeleton, RelativeTime, SectionCard } from "./design-system";
 import { AssignedCaseAction, JudgeRequestsAction, VerifyAuditAction } from "./home-actions";
 import { ProgressTimeline } from "./progress-timeline";
 import { RegisterFir } from "./register-fir";
 import { FirNumber } from "./fir-number";
 import { StatusBadge } from "./status-badge";
-import { FirCheckBox } from "./fir-check";
+import { caseStatus, needsAttention } from "./case-status";
+import { useI18n } from "./i18n";
+
 export function DashboardView() {
-    const session = useSession();
-    const cases = useResource("GET /api/cases", { query: { limit: 100 } });
-    if (cases.loading)
-        return <PageSkeleton />;
-    if (cases.error || !cases.data)
-        return <ResourceError error={cases.error || new Error("No cases")} retry={cases.reload}/>;
-    const rows = cases.data.items;
-    const role = session.user.role;
-    const court = ["JUDGE", "PUBLIC_PROSECUTOR", "ADMIN"].includes(role);
-    if (role === "COMPLAINANT")
-        return <div className="page-grid"><PageHeader title="My case progress" description="Recorded milestones for your case."/><SectionCard>{rows.map(c => <ProgressTimeline key={c.id} caseId={c.id}/>)}{!rows.length && <p className="text-sm text-muted-foreground">No case linked to this account. Contact the station.</p>}</SectionCard></div>;
-    const total = rows.reduce((n, c) => n + c.documentCount, 0);
-    const verified = rows.reduce((n, c) => n + c.integrity.VERIFIED, 0);
-    const attention = rows.filter(c => c.integrity.TAMPERED || c.integrity.ERROR || c.integrity.unchecked);
-    const title = role === "POLICE" ? "Station cases" : ["FORENSIC_LAB", "PUBLIC_PROSECUTOR"].includes(role) ? "Assigned cases" : role === "ADMIN" ? "Administration" : "Court cases";
-    const caseColumns = [{ key: "fir", label: "FIR No.", sort: (c: CaseSummary) => c.firNo, render: (c: CaseSummary) => <Link className="text-[#c2410c]" href={"/cases/" + c.id}><FirNumber value={c.firNo}/></Link> }, { key: "station", label: "Police Station", render: (c: CaseSummary) => c.station }, { key: "stage", label: "Stage", render: (c: CaseSummary) => humanize(c.stage) }, { key: "documents", label: "Documents", sort: (c: CaseSummary) => c.documentCount, render: (c: CaseSummary) => c.documentCount }, { key: "integrity", label: "Integrity", render: (c: CaseSummary) => <StatusBadge status={c.integrity.TAMPERED ? "TAMPERED" : c.integrity.ERROR ? "ERROR" : c.documentCount > 0 && c.integrity.VERIFIED === c.documentCount ? "VERIFIED" : c.integrity.PENDING_ANCHOR ? "PENDING_ANCHOR" : c.integrity.UNANCHORED ? "UNANCHORED" : null}/> }];
-    return <div className="page-grid"><PageHeader title={title} description={session.user.station} action={<>{session.canCreateCase && <RegisterFir onCreated={() => cases.reload()}/>} {role === "JUDGE" && <JudgeRequestsAction/>}{role === "ADMIN" && <VerifyAuditAction/>}</>}/>{["FORENSIC_LAB", "PUBLIC_PROSECUTOR"].includes(role) && <AssignedCaseAction cases={rows} prosecutor={role === "PUBLIC_PROSECUTOR"} onComplete={cases.reload}/ >}{court && <div className="flex flex-wrap gap-2">{role === "JUDGE" && <Button asChild variant="outline"><Link href="/requests">Requests queue</Link></Button>}<Button asChild variant="outline"><Link href="/integrity">Integrity scans</Link></Button><Button asChild variant="outline"><Link href="/audit">Audit chain / FIR register</Link></Button><Button asChild variant="outline"><Link href="/batches">Batches</Link></Button></div>}<div className="grid grid-cols-2 gap-2 lg:grid-cols-4"><StatCard label="Cases" value={rows.length} detail="Permitted cases"/><StatCard label="Documents" value={total} detail="Includes retained versions"/><StatCard label="Verified" value={verified} detail="Recorded VERIFIED results"/><StatCard label="Needs attention" value={attention.length} detail="Changed, failed or unchecked" danger={attention.length > 0}/></div><div className="grid min-w-0 gap-4 xl:grid-cols-2"><SectionCard title="Needs attention"><DataTable rows={attention.slice(0, 5)} rowKey={c => c.id} searchText={c => c.firNo + " " + c.station} columns={[...caseColumns.slice(0, 1), { key: "status", label: "Integrity", render: c => <StatusBadge status={c.integrity.TAMPERED ? "TAMPERED" : c.integrity.ERROR ? "ERROR" : null}/> }]}/></SectionCard>{["JUDGE", "ADMIN"].includes(role) ? <RecentActivity /> : <SectionCard title="Recent activity"><DataTable rows={[...rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5)} rowKey={c => c.id} searchText={c => c.firNo} columns={[...caseColumns.slice(0, 1), { key: "filed", label: "Filed on", render: c => <RelativeTime at={c.createdAt}/> }]}/></SectionCard>}</div><SectionCard title={title} action={<Button asChild variant="link"><Link href="/cases">Open register</Link></Button>}><DataTable rows={rows} rowKey={c => c.id} searchText={c => c.firNo + " " + c.station} columns={caseColumns}/></SectionCard>{court && <BlockchainActivity />}{role === "ADMIN" && <FirCheckBox />}</div>;
+  const { t, label } = useI18n();
+  const session = useSession();
+  const cases = useResource("GET /api/cases", { query: { limit: 100 } });
+  if (cases.loading) return <PageSkeleton />;
+  if (cases.error || !cases.data) return <ResourceError error={cases.error || new Error(t("err.noData"))} retry={cases.reload} />;
+
+  const rows = cases.data.items;
+  const role = session.user.role;
+
+  if (role === "COMPLAINANT") {
+    return (
+      <div className="page-grid">
+        <PageHeader title={t("nav.progress")} description={t("home.complainantSub")} />
+        {rows.map(c => <ProgressTimeline key={c.id} caseId={c.id} />)}
+        {!rows.length && <p className="text-base text-muted-foreground">{t("home.noCase")}</p>}
+      </div>
+    );
+  }
+
+  const attention = rows.filter(needsAttention).length;
+  const kind = role === "POLICE" ? "station" : role === "ADMIN" ? "admin" : role === "JUDGE" ? "court" : "assigned";
+
+  const columns = [
+    { key: "fir", label: t("col.fir"), sort: (c: CaseSummary) => c.firNo, render: (c: CaseSummary) => <Link className="text-primary" href={"/cases/" + c.id}><FirNumber value={c.firNo} /></Link> },
+    ...(role === "POLICE" ? [] : [{ key: "station", label: t("col.station"), render: (c: CaseSummary) => c.station }]),
+    { key: "stage", label: t("col.stage"), render: (c: CaseSummary) => label(c.stage) },
+    { key: "documents", label: t("col.documents"), sort: (c: CaseSummary) => c.documentCount, render: (c: CaseSummary) => c.documentCount },
+    { key: "status", label: t("col.status"), render: (c: CaseSummary) => <StatusBadge status={caseStatus(c)} /> },
+    { key: "filed", label: t("col.filed"), sort: (c: CaseSummary) => c.createdAt, render: (c: CaseSummary) => <RelativeTime at={c.createdAt} /> },
+  ];
+
+  return (
+    <div className="page-grid">
+      <PageHeader
+        title={t(`home.title.${kind}`)}
+        description={t(`home.sub.${kind}`)}
+        action={
+          <>
+            {session.canCreateCase && <RegisterFir onCreated={() => cases.reload()} />}
+            {role === "JUDGE" && <JudgeRequestsAction />}
+            {role === "ADMIN" && <VerifyAuditAction />}
+          </>
+        }
+      />
+      {["FORENSIC_LAB", "PUBLIC_PROSECUTOR"].includes(role) && (
+        <AssignedCaseAction cases={rows} prosecutor={role === "PUBLIC_PROSECUTOR"} onComplete={cases.reload} />
+      )}
+      {attention > 0 && <InlineNotice danger>{t("home.attention", { n: attention })}</InlineNotice>}
+      <SectionCard
+        title={t("home.casesTitle")}
+        action={<Button asChild variant="link"><Link href="/cases">{t("home.moreFilters")}</Link></Button>}
+      >
+        <DataTable rows={rows} rowKey={c => c.id} searchText={c => c.firNo + " " + c.station} searchLabel={t("cases.search")} columns={columns} empty={t("home.noCases")} emptyHelp={t(session.canCreateCase ? "home.noCasesPolice" : "home.noCasesOther")} />
+      </SectionCard>
+    </div>
+  );
 }
-function RecentActivity() { const events = useResource("GET /api/audit", { query: { limit: 5 } }); return <SectionCard title="Recent activity">{events.loading ? <PageSkeleton /> : events.error ? <ResourceError error={events.error} retry={events.reload}/> : <DataTable rows={events.data?.items ?? []} rowKey={e => e.id} searchText={e => e.actorName + e.action} columns={[{ key: "action", label: "Action", render: e => <span className={e.action === "DENIED" || e.action === "TAMPER_DETECTED" ? "text-tampered" : ""}>{humanize(e.action)}</span> }, { key: "actor", label: "Actor", render: e => e.actorName }, { key: "at", label: "Recorded on", render: e => <RelativeTime at={e.at}/> }]}/>}</SectionCard>; }

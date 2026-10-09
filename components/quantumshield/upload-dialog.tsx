@@ -8,63 +8,101 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CopyableHash, Stepper, humanize } from "./design-system";
+import { CopyableHash } from "./design-system";
 import { StatusBadge } from "./status-badge";
 import { formatBytes } from "./format";
+import { useI18n } from "./i18n";
+
 export function UploadDialog({ caseId, allowedTypes, parentId, onComplete, label, secondary = false }: {
-    label?: string; secondary?: boolean;
-    caseId: string;
-    allowedTypes: DocType[];
-    parentId?: string;
-    onComplete?: () => void;
+  caseId: string;
+  allowedTypes: DocType[];
+  parentId?: string;
+  onComplete?: () => void;
+  label?: string;
+  secondary?: boolean;
 }) {
-    const [step, setStep] = useState(0), [file, setFile] = useState<File | null>(null), [type, setType] = useState<DocType>(allowedTypes[0]), [busy, setBusy] = useState(false), [error, setError] = useState("");
-    const [receipt, setReceipt] = useState<UploadReceipt | null>(null);
-    function validate() {
-        if (!file || !type) {
-            setError("Choose a file and document type.");
-            return false;
-        }
-        if (!file.size || file.size > MAX_UPLOAD_BYTES) {
-            setError("Choose a non-empty file no larger than 4 MB.");
-            return false;
-        }
-        if (!(file.type in ALLOWED_UPLOAD_MIME)) {
-            setError("Choose PDF, DOCX, TXT, PNG or JPG.");
-            return false;
-        }
-        setError("");
-        return true;
+  const { t, label: enumLabel } = useI18n();
+  const [file, setFile] = useState<File | null>(null);
+  const [type, setType] = useState<DocType>(allowedTypes[0]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [receipt, setReceipt] = useState<UploadReceipt | null>(null);
+
+  function problem() {
+    if (!file || !type) return t("up.needBoth");
+    if (!file.size || file.size > MAX_UPLOAD_BYTES) return t("up.tooBig");
+    if (!(file.type in ALLOWED_UPLOAD_MIME)) return t("up.badType");
+    return "";
+  }
+
+  async function submit() {
+    const found = problem();
+    setError(found);
+    if (found || !file) return;
+    setBusy(true);
+    try {
+      setReceipt(await api("POST /api/documents", { form: { file, caseId, type, parentId } }));
+      toast.success(t("up.toastOk"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("up.failed"));
+      toast.error(t("up.toastFail"));
+    } finally {
+      setBusy(false);
     }
-    async function submit() {
-        if (!validate() || !file)
-            return;
-        setBusy(true);
-        try {
-            const form = { file, caseId, type, parentId };
-            const result = await api("POST /api/documents", { form });
-            setReceipt(result);
-            setStep(2);
-            toast.success("Upload receipt ready");
-        }
-        catch (e) {
-            setError(e instanceof Error ? e.message : "Upload failed");
-            toast.error("Upload could not finish");
-        }
-        finally {
-            setBusy(false);
-        }
+  }
+
+  function changeOpen(open: boolean) {
+    if (!open && receipt) onComplete?.();
+    if (open) {
+      setFile(null);
+      setReceipt(null);
+      setError("");
     }
-    return <Dialog onOpenChange={open => {
-            if (!open && receipt)
-                onComplete?.();
-            if (open) {
-                setStep(0);
-                setReceipt(null);
-                setError("");
-            }
-        }}><DialogTrigger asChild><Button variant={secondary ? "outline" : "default"} disabled={!allowedTypes.length} title={!allowedTypes.length ? "Your role cannot upload to this case" : undefined}><FileUp />{label ?? (parentId ? "Add new version" : "Upload document")}</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{parentId ? "Add a linked evidence version" : "Upload evidence"}</DialogTitle><DialogDescription>Evidence is append-only. Original records and custody history are retained.</DialogDescription></DialogHeader><Stepper steps={["Choose file", "Confirm details", "Receipt"]} current={step}/>{step === 0 && <div className="grid gap-4"><div className="grid gap-2"><Label htmlFor="upload-type">Document type</Label><select id="upload-type" className="h-11 rounded-md border bg-background px-3 text-sm" value={type} onChange={e => setType(e.target.value as DocType)}>{allowedTypes.map(t => <option key={t} value={t}>{humanize(t)}</option>)}</select></div><div className="grid gap-2"><Label htmlFor="upload-file">Evidence file</Label><Input id="upload-file" type="file" accept={Object.values(ALLOWED_UPLOAD_MIME).join(",")} onChange={e => setFile(e.target.files?.[0] ?? null)}/><p className="text-xs text-muted-foreground">PDF, DOCX, TXT, PNG, JPG · maximum 4 MB</p></div></div>}{step === 1 && file && <div className="rounded-lg border bg-muted/40 p-4 text-sm"><p className="break-all font-semibold">{file.name}</p><p className="mt-2 text-muted-foreground">{humanize(type)} · {formatBytes(file.size)}</p><p className="mt-4 text-xs">{"Your file will be encrypted and signed. Blockchain anchoring is a separate step."}</p></div>}{step === 2 && receipt && <div className="space-y-4" aria-live="polite"><StatusBadge status={receipt.verification.status}/><p className="text-sm">{receipt.document.filename}</p><p className="text-xs text-muted-foreground">{receipt.encryption} · {receipt.keyWrapping}<br />{receipt.signature.algorithm}: {receipt.signature.status}</p><div><p className="section-label">Content hash</p><CopyableHash value={receipt.document.sha256}/></div><div><p className="section-label">Audit reference</p><CopyableHash value={receipt.auditEntryId} label="Audit reference"/></div></div>}{error && <p role="alert" className="text-sm text-tampered">{error}</p>}<DialogFooter showCloseButton>{step === 0 && <Button onClick={() => {
-                if (validate())
-                    setStep(1);
-            }}>Review upload</Button>}{step === 1 && <><Button variant="outline" disabled={busy} onClick={() => setStep(0)}>Back</Button><Button disabled={busy} onClick={() => void submit()}>{busy ? "Submitting…" : "Encrypt and upload"}</Button></>}</DialogFooter></DialogContent></Dialog>;
+  }
+
+  return (
+    <Dialog onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <Button variant={secondary ? "outline" : "default"} disabled={!allowedTypes.length} title={!allowedTypes.length ? t("up.cannot") : undefined}>
+          <FileUp />{label ?? t(parentId ? "up.newVersion" : "up.button")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t(parentId ? "up.titleVersion" : "up.title")}</DialogTitle>
+          <DialogDescription>{t("up.desc")}</DialogDescription>
+        </DialogHeader>
+        {receipt ? (
+          <div className="space-y-4" aria-live="polite">
+            <StatusBadge status={receipt.verification.status} />
+            <p className="text-lg font-semibold">{t("up.receipt")}</p>
+            <p className="break-all text-base">{receipt.document.filename}</p>
+            <p className="text-base text-muted-foreground">{t("up.receiptNote")}</p>
+            <div><p className="section-label">{t("up.fingerprint")}</p><CopyableHash value={receipt.document.sha256} /></div>
+            <div><p className="section-label">{t("up.reference")}</p><CopyableHash value={receipt.auditEntryId} label={t("up.reference")} /></div>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="upload-type">{t("up.type")}</Label>
+              <select id="upload-type" className="h-11 border bg-background px-3 text-base" value={type} onChange={e => setType(e.target.value as DocType)}>
+                {allowedTypes.map(value => <option key={value} value={value}>{enumLabel(value)}</option>)}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="upload-file">{t("up.file")}</Label>
+              <Input id="upload-file" type="file" accept={Object.values(ALLOWED_UPLOAD_MIME).join(",")} onChange={e => setFile(e.target.files?.[0] ?? null)} />
+              <p className="text-sm text-muted-foreground">
+                {file ? t("up.chosen", { name: file.name, size: formatBytes(file.size) }) : t("up.fileHelp")}
+              </p>
+            </div>
+          </div>
+        )}
+        {error && <p role="alert" className="text-base text-tampered">{error}</p>}
+        <DialogFooter showCloseButton>
+          {!receipt && <Button disabled={busy} onClick={() => void submit()}>{busy ? t("up.busy") : t("up.submit")}</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

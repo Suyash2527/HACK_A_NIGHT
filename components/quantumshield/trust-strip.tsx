@@ -1,3 +1,24 @@
-import { Cloud, Database, Fingerprint, HardDrive, KeyRound, Shield } from "lucide-react";
-export const TRUST_COPY = "ML-DSA-65 signatures are verified off-chain by our backend verifier. The blockchain stores hashes and the verifier's attestation; it does not verify post-quantum signatures.";
-export function TrustStrip() { const items = [{ name: "Cognito", icon: Fingerprint, detail: "Identity" }, { name: "RDS + RLS", icon: Database, detail: "Case permissions" }, { name: "S3 Object Lock", icon: HardDrive, detail: "Retained versions" }, { name: "AWS KMS", icon: KeyRound, detail: "Key protection" }, { name: "EC2 + Caddy", icon: Cloud, detail: "Delivery" }]; return <footer className="mt-8 border-t px-4 py-6 sm:px-8"><div className="mx-auto max-w-[1440px]"><div className="mb-3 flex items-center gap-2"><Shield className="size-3.5 text-primary"/><span className="section-label">AWS & trust · protection architecture</span></div><div className="flex flex-wrap gap-x-5 gap-y-3">{items.map(({ name, detail, icon: Icon }) => <div key={name} title={detail} className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="size-3.5"/>{name}</div>)}</div><p className="mt-4 max-w-4xl text-[11px] leading-5 text-muted-foreground">{TRUST_COPY}</p></div></footer>; }
+"use client";
+import { Shield } from "lucide-react";
+import { TechnicalDetails } from "./design-system";
+import { useI18n } from "./i18n";
+
+export function TrustStrip() {
+  const { t } = useI18n();
+  return (
+    <footer className="mt-8 border-t px-4 py-6 sm:px-8">
+      <div className="mx-auto max-w-[1440px]">
+        <p className="flex items-start gap-2 text-sm">
+          <Shield className="mt-0.5 size-4 shrink-0 text-primary" />
+          {t("trust.line")}
+        </p>
+        <div className="mt-3 max-w-3xl text-sm text-muted-foreground">
+          <TechnicalDetails title={t("trust.techTitle")}>
+            <p>{t("trust.note")}</p>
+            <p>{t("trust.services")}</p>
+          </TechnicalDetails>
+        </div>
+      </div>
+    </footer>
+  );
+}
