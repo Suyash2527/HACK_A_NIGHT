@@ -23,6 +23,8 @@ export const notFound = (m = "Record unavailable") => new ApiError("NOT_FOUND", 
 export const tampered = (m: string, details?: Record<string, unknown>) => new ApiError("TAMPERED", m, details);
 export const tooLarge = (m = "File exceeds 4 MB") => new ApiError("TOO_LARGE", m);
 export const invalid = (m: string, details?: Record<string, unknown>) => new ApiError("VALIDATION", m, details);
+export const unavailable = (m = "The blockchain is not available") => new ApiError("CHAIN_UNAVAILABLE", m);
+export const disabledFeature = (m: string) => new ApiError("FEATURE_DISABLED", m);
 
 /** Postgres error → API error. 42501 = insufficient_privilege (RLS WITH CHECK, missing GRANT, append-only trigger). */
 export function fromDbError(e: unknown): ApiError | null {

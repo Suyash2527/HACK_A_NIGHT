@@ -280,7 +280,7 @@ export async function verifyDocumentById(user: SessionUser, docId: string, deps?
 }
 
 // ───────────────────────────── view / download
-export interface ContentResult { bytes: Buffer; filename: string; mimeType: string; sha256: string; verification: VerifyResult }
+export interface ContentResult { bytes: Buffer; filename: string; mimeType: string; sha256: string; verification: VerifyResult; orderRef: string | null }
 
 /** Verifies FIRST, then releases plaintext. A tampered or unverifiable document is never served. */
 export async function readContent(user: SessionUser, docId: string, disposition: "inline" | "attachment", deps?: EvidenceDeps): Promise<ContentResult> {
@@ -300,7 +300,7 @@ export async function readContent(user: SessionUser, docId: string, disposition:
       throw tampered("Integrity mismatch: content withheld", { verification: out.result as unknown as Record<string, unknown> });
     }
     await writeAudit(tx, { actorId: user.id, action: disposition === "inline" ? "VIEW" : "DOWNLOAD", docId, caseId: loaded.row.case_id, basis });
-    return { bytes: out.plaintext, filename: loaded.row.filename, mimeType: loaded.row.mime_type, sha256: loaded.row.sha256, verification: out.result };
+    return { bytes: out.plaintext, filename: loaded.row.filename, mimeType: loaded.row.mime_type, sha256: loaded.row.sha256, verification: out.result, orderRef: basis.orderRef };
   });
 }
 

@@ -55,7 +55,7 @@ export async function createPgliteDatabase(dataDir?: string): Promise<Database> 
   const tx: Tx = {
     async query<T = Row>(sql: string, params?: unknown[]) {
       const r = await db.query(sql, params);
-      return { rows: r.rows as T[], rowCount: r.affectedRows ?? r.rows.length };
+      return { rows: r.rows as T[], rowCount: r.affectedRows || r.rows.length };
     },
   };
   const run = <T>(setup: string, params: unknown[], fn: (t: Tx) => Promise<T>): Promise<T> =>
