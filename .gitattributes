@@ -1,0 +1,6 @@
+# keep evidence files byte-exact (their hashes are the whole point)
+*.pdf binary
+*.png binary
+*.jpg binary
+*.docx binary
+data/cases-*/** -text
