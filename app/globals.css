@@ -121,3 +121,10 @@ main h1 { font-family:var(--font-plex-serif),serif; }
 [data-slot=card-content],[data-slot=card-header] { padding-left:0; padding-right:0; }
 .integrity-result { border:1px solid var(--border); background:var(--card); padding:16px; }
 .integrity-result [data-slot=card-header],.integrity-result [data-slot=card-content] { padding:0; }
+
+/* Grid children may shrink; only table containers scroll horizontally. */
+.page-grid > *, [data-slot=card-content], .document-columns > *, .document-columns { min-width:0; max-width:100%; }
+.document-columns p, .document-columns h2, .document-columns a, .document-columns time { overflow-wrap:anywhere; }
+[data-slot=dialog-content],[data-slot=alert-dialog-content] { width:calc(100% - 32px); max-width:512px; border:1px solid var(--border); }
+[data-slot=dialog-overlay],[data-slot=alert-dialog-overlay],[data-slot=sheet-overlay] { background:rgb(28 27 25 / 45%)!important; }
+[data-slot=alert-dialog-header] { text-align:left; justify-items:start; }
