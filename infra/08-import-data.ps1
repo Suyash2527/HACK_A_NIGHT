@@ -28,7 +28,8 @@ if ($Check) { return }
 $work = Join-Path $Root ".deploy\import"
 if (Test-Path $work) { Remove-Item $work -Recurse -Force }
 New-Item -ItemType Directory -Force $work | Out-Null
-& npx.cmd esbuild scripts/import-cases.mts --bundle --platform=node --format=esm --outfile="$work\import-cases.mjs" --external:@electric-sql/pglite --external:pg-native --log-level=warning
+$banner = "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"   # bundled CommonJS deps call require()
+& npx.cmd esbuild scripts/import-cases.mts --bundle --platform=node --format=esm "--banner:js=$banner" --outfile="$work\import-cases.mjs" --external:@electric-sql/pglite --external:pg-native --log-level=warning
 if ($LASTEXITCODE -ne 0) { throw "bundling the importer failed" }
 $winTar = Join-Path $env:SystemRoot "System32\tar.exe"
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
