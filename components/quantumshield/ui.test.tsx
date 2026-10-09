@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { IntegrityPanel } from "./integrity-panel"
+import { DataTable } from "./design-system"; import { IntegrityPanel } from "./integrity-panel"
 import { StatusBadge } from "./status-badge"
 import { MOCK_CASES, MOCK_REQUESTS, MOCK_PROGRESS, MOCK_SESSION, mockRegisterCase, mockFirCheck, MOCK_ASSEMBLY, MOCK_AUDIT, MOCK_DOCUMENTS, MOCK_TAMPERED_RESULT, MOCK_VERIFIED_RESULT, mockVerification } from "./mocks"
 import { TRUST_COPY } from "./trust-strip"
 import { FirNumber } from "./fir-number"
-import { FIR_NUMBER_PATTERN, type VerifyStatus } from "@/types/api"
+import { FIR_NUMBER_PATTERN, type CaseSummary, type VerifyStatus } from "@/types/api"
 function contrast(a:string,b:string){const lum=(hex:string)=>{const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4);return c[0]*0.2126+c[1]*0.7152+c[2]*0.0722};const x=lum(a),y=lum(b);return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05)}
 test("black text palette meets AA contrast",()=>{for(const fg of ["#f2f2f2","#9a9a9a","#ff9933","#3fb950","#f85149","#d29922"])assert.ok(contrast(fg,"#000000")>=4.5,fg)})
 test("all verification states pair an icon with a label; only VERIFIED is green",()=>{for(const status of ["VERIFIED","TAMPERED","PENDING_ANCHOR","UNANCHORED","ERROR"] as VerifyStatus[]){const html=renderToStaticMarkup(createElement(StatusBadge,{status}));assert.match(html,/<svg/);assert.equal(html.includes("tone-verified"),status==="VERIFIED");assert.ok(!html.includes(">"+status+"<"))}})
@@ -24,3 +24,5 @@ test("FIR presentation separates the register code without claiming evidence ver
 test("case registration sends only optional complainant email and preserves its receipt",()=>{const source=readFileSync("components/quantumshield/cases-view.tsx","utf8");assert.ok(source.includes('const body:CreateCaseRequest=email.trim()?{complainantEmail:email.trim()}:{}'));assert.ok(!source.includes('id="station"'));assert.ok(!source.includes('id="fir"'));assert.ok(source.includes('Copy assigned FIR number'));assert.ok(source.includes('Assigned by Sakshya · verification code'));assert.ok(source.includes('<FirCheckBox/>'))})
 
 test("40 mock cases have unique ids, FIR numbers and consistent counts",()=>{assert.equal(MOCK_CASES.items.length,40);assert.equal(new Set(MOCK_CASES.items.map(c=>c.id)).size,40);assert.equal(new Set(MOCK_CASES.items.map(c=>c.firNo)).size,40);for(const c of MOCK_CASES.items)assert.equal(Object.values(c.integrity).reduce((a,b)=>a+b,0),c.documentCount)})
+
+test("40-case table renders 20 rows and two pages",()=>{const html=renderToStaticMarkup(createElement(DataTable<CaseSummary>,{rows:MOCK_CASES.items,rowKey:(row:typeof MOCK_CASES.items[number])=>row.id,searchText:(row:typeof MOCK_CASES.items[number])=>row.firNo,columns:[{key:"fir",label:"FIR No.",sort:(row:typeof MOCK_CASES.items[number])=>row.firNo,render:(row:typeof MOCK_CASES.items[number])=>row.firNo}]}));assert.equal((html.match(/data-slot="table-row"/g)??[]).length,21);assert.match(html,/Page 1 of 2/);assert.match(html,/40 records/)})

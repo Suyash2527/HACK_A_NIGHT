@@ -113,3 +113,5 @@ a.text-primary { color:#ff9933; }
 @keyframes ui-fade-in { from { opacity:0; } to { opacity:1; } }
 @keyframes ui-fade-out { from { opacity:1; } to { opacity:0; } }
 @media(prefers-reduced-motion:reduce) { [data-state] { animation:none!important; } }
+
+:focus-visible { outline:2px solid #ff9933!important; outline-offset:2px; }
