@@ -26,21 +26,15 @@ export function PageSkeleton() { return <div aria-busy="true" aria-label="Loadin
 export function InlineNotice({ children, danger = false }: { children: ReactNode; danger?: boolean }) { return <div role={danger ? "alert" : "status"} className={"flex items-start gap-2 rounded-lg border p-3 text-xs " + (danger ? "tone-danger" : "tone-info")}><Info className="mt-0.5 size-4 shrink-0"/><div>{children}</div></div> }
 export function LegalBasisView({ value }: { value: LegalBasis }) { return <div className="max-w-xs whitespace-normal text-xs"><p className="font-medium">{humanize(value.code)}</p>{value.citation && <p className="mt-1 text-muted-foreground">{value.citation}</p>}{value.orderRef && <p className="mt-1 font-medium text-primary">{value.orderRef}</p>}</div> }
 export function humanize(value: string) { return value.toLowerCase().replaceAll("_", " ").split(" ").map(word=>word.charAt(0).toUpperCase()+word.slice(1)).join(" ") }
-export function RelativeTime({ at }: { at: ISODate | null }) {
- const [now,setNow] = useState<number | null>(null)
- useEffect(()=>{ const timer=setInterval(()=>setNow(Date.now()),60000); const init=setTimeout(()=>setNow(Date.now()),0); return ()=>{clearTimeout(init);clearInterval(timer)} },[])
- if (!at) return <span>Not yet</span>
- let text = formatIST(at)
- if (now) { const seconds=Math.round((new Date(at).getTime()-now)/1000); const abs=Math.abs(seconds); const unit=abs<3600?"minute":abs<86400?"hour":"day"; const divisor=unit==="minute"?60:unit==="hour"?3600:86400; text=new Intl.RelativeTimeFormat("en",{numeric:"auto"}).format(Math.round(seconds/divisor),unit) }
- return <time dateTime={at} title={formatIST(at)} className="text-xs text-muted-foreground">{text}<span className="print-only">{formatIST(at)}</span></time>
-}
+export function RelativeTime({ at }: { at: ISODate | null }) { return at?<time dateTime={at} className="font-mono text-xs text-muted-foreground">{formatIST(at)}</time>:<span className="text-xs text-muted-foreground">Not recorded</span> }
 export function FileIcon({ mime }: { mime: AllowedMime }) { return <span className="grid size-5 shrink-0 place-items-center text-muted-foreground">{mime.startsWith("image") ? <ImageIcon className="size-5"/> : <FileText className="size-5"/>}</span> }
 export function PrintButton({ label = "Print summary" }: { label?: string }) { return <Button className="no-print" variant="outline" onClick={()=>window.print()}><Printer/>{label}</Button> }
 export function Stepper({ steps, current }: { steps: string[]; current: number }) { return <ol aria-label="Steps" className="mb-5 grid grid-cols-3 gap-2">{steps.map((step,i)=><li key={step} aria-current={i===current?"step":undefined} className={"border-t-2 pt-2 text-xs " + (i<=current?"border-primary text-primary":"border-border text-muted-foreground")}><span className="font-semibold">{i+1}. </span>{step}</li>)}</ol> }
 export function Timeline({ children }: { children: ReactNode }) { return <ol className="timeline">{children}</ol> }
 export function TimelineItem({ title, detail, at, danger = false, children }: { title: string; detail?: string; at?: ISODate; danger?: boolean; children?: ReactNode }) { return <li><span className={"timeline-dot " + (danger?"text-tampered":"text-primary")}><span className="size-1.5 rounded-full bg-current"/></span><div className="flex flex-wrap items-center justify-between gap-1"><p className="text-sm font-medium">{title}</p>{at&&<RelativeTime at={at}/>}</div>{detail&&<p className="mt-1 text-xs text-muted-foreground">{detail}</p>}{children}</li> }
-export function DataTable<T>({ rows, columns, rowKey, searchText, empty = "No records match these filters", searchLabel = "Search records" }: { rows:T[]; columns:{key:string;label:string;render:(row:T)=>ReactNode;sort?:(row:T)=>string|number}[]; rowKey:(row:T)=>string; searchText:(row:T)=>string; empty?:string; searchLabel?:string }) {
+export function DataTable<T>({ rows, columns, rowKey, searchText, resetKey = "", empty = "No records match these filters", searchLabel = "Search records" }: { rows:T[]; columns:{key:string;label:string;render:(row:T)=>ReactNode;sort?:(row:T)=>string|number}[]; rowKey:(row:T)=>string; searchText:(row:T)=>string; resetKey?:string; empty?:string; searchLabel?:string }) {
  const [query,setQuery]=useState(""); const [sort,setSort]=useState<{key:string;asc:boolean}|null>(null); const [page,setPage]=useState(0)
+ useEffect(()=>{const timer=setTimeout(()=>setPage(0),0);return()=>clearTimeout(timer)},[resetKey])
  const filtered=rows.filter(r=>searchText(r).toLowerCase().includes(query.toLowerCase())); const column=columns.find(c=>c.key===sort?.key)
  if(column?.sort) filtered.sort((a,b)=>String(column.sort!(a)).localeCompare(String(column.sort!(b)),undefined,{numeric:true})*(sort?.asc?1:-1))
  const count=Math.max(1,Math.ceil(filtered.length/20)); const current=Math.min(page,count-1)

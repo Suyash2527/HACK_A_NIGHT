@@ -95,8 +95,21 @@
 [class*=shadow] { box-shadow:none!important; }
 [class*=backdrop-blur] { backdrop-filter:none!important; }
 a.text-primary { color:#ff9933; }
-[data-slot=button].border { border-color:#f2f2f2; }
+
 @keyframes check-in { from { opacity:0; } to { opacity:1; } }
 @media(max-width:640px) { :root { --space-card:12px; } [data-slot=button] { min-height:36px; } .page-heading h1 { font-size:20px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 @media print { .no-print,aside,header[data-app-header],button,[role=tablist] { display:none!important; } .print-only { display:block; } .app-body { padding-left:0!important; } main { padding:0!important; max-width:none!important; } [data-slot=card] { break-inside:avoid; } [data-slot=table-container] { max-height:none; overflow:visible; } @page { margin:15mm; size:A4; } }
+
+/* Controls use opaque surfaces and fades only. */
+[data-slot=button][data-variant=default] { background:#fff; color:#000; border-color:#fff; }
+[data-slot=button][data-variant=outline], [data-slot=button][data-variant=secondary] { background:#000; color:#f2f2f2; border:1px solid #f2f2f2; }
+[data-slot=button][data-variant=ghost] { background:#000; border-color:transparent; }
+[data-slot=button][data-variant=link] { color:#ff9933; border-color:transparent; }
+[data-slot=button] { transform:none!important; transition:background-color 120ms linear; }
+[data-slot=dialog-content],[data-slot=alert-dialog-content],[data-slot=sheet-content],[data-slot=dropdown-menu-content],[data-slot=select-content],[data-slot=popover-content] { background:#000; }
+[data-slot=dialog-content][data-state=open],[data-slot=alert-dialog-content][data-state=open],[data-slot=sheet-content][data-state=open],[data-slot=dropdown-menu-content][data-state=open],[data-slot=select-content][data-state=open] { animation:ui-fade-in 120ms linear!important; }
+[data-slot=dialog-content][data-state=closed],[data-slot=alert-dialog-content][data-state=closed],[data-slot=sheet-content][data-state=closed],[data-slot=dropdown-menu-content][data-state=closed],[data-slot=select-content][data-state=closed] { animation:ui-fade-out 120ms linear!important; }
+@keyframes ui-fade-in { from { opacity:0; } to { opacity:1; } }
+@keyframes ui-fade-out { from { opacity:1; } to { opacity:0; } }
+@media(prefers-reduced-motion:reduce) { [data-state] { animation:none!important; } }

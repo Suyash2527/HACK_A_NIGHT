@@ -1,32 +1,37 @@
-# QuantumShield — three-minute demo
+# Sakshya — black UI demo path
 
-Assumption: five authenticated browser profiles are prepared; Claude provides the seeded fixtures, privileged attack script and on-demand anchoring operation. All records are fictional. Present on the deployed EC2 + CloudFront HTTPS URL.
+Use the deployed HTTPS site or the single local server on port 3100. Live mode is NEXT_PUBLIC_USE_MOCKS=false. Offline mode is explicitly true and shows “Demo data — simulated results”. The shared password is entered by the operator; never put it in this document or a screenshot.
 
-## Before the clock
+## Preparation
 
-- Open P case/upload, F assigned case, R document, J integrity dashboard, and P recovery tabs. No role-switch control that bypasses Cognito. Use the UUIDs/names in UI_SPEC.
-- Prepare a 16,384-byte ASCII FIR `.txt`, an assigned forensic PDF, an unassigned-case deep link, and a confirmed pre-anchored FIR fixture. Keep the live upload distinct from the pre-anchored fixture.
-- Confirm all six checks pass on the attack fixture and a retained original S3 version exists. Record a short red → restored-green rehearsal; label it “Recorded rehearsal” if used.
-- Attack-script contract for Claude, not code: target only the seeded FIR; decrypt in memory, XOR exactly one plaintext byte at offset 9000 with 0x01, re-encrypt with a fresh valid AES-GCM nonce/tag, and overwrite the current S3 object key. S3 versioning creates a new object version; Object Lock retains the old one. Make the current envelope/tag available to the verifier through the isolated demo harness, without rewriting signed hash/chunk hashes/signature/proof/audit history. Do not write plaintext to disk.
-- The attacker is deliberately modeled with decryption and re-encryption privileges. If ciphertext alone is flipped or the tag is stale, GCM fails and localization cannot be demonstrated. Rehearse this distinction. No production attack endpoint or UI control.
-- Recovery appends a new document version from the locked original; authorized contributor only. Prepare backend anchoring to fit the timing below. Confirmation time cannot be guaranteed; keep the recorded recovery and confirmed fixture ready.
-- Bonus assistant: use Bedrock only if access filtering and no-plaintext-persistence work. Otherwise prepare a clearly labelled illustrative answer.
+- Retain one dev process only; the embedded database permits one process per data directory. Do not run scripts that open .data/db while the server runs.
+- Prepare Police, Forensic, Judge, Prosecutor and Admin browser sessions. Use the four authority choices on Sign in; Court includes Judge and Public Prosecutor. Advocate and Complainant use the smaller links.
+- Create the case through Register case. Enter only the optional complainant email. Copy the assigned FIR No.; station, serial and code come from the system.
+- Have a 16,384-byte fictional FIR text file, an assigned forensic report, an unassigned case URL and a previously anchored document ready.
+- Verify the prepared document shows VERIFIED and the six checks pass. Allow time for new uploads to anchor. A confirmed transaction alone does not mean the document is VERIFIED.
+- Rehearse with backend's approved demo attack tool and retained original. For localisation, the attack must modify plaintext then re-encrypt with a valid tag; a raw ciphertext flip can fail decryption without a chunk range.
+- Check the live transaction table has real explorer links. No explorer URL is labelled Local dev chain.
 
-## Click-by-click run (180 seconds, five steps)
+## Three-minute run
 
-| Time | Operator clicks / action | Presenter says / evidence shown |
+| Time | Operator | Screen and explanation |
 |---|---|---|
-| **0:00–0:15 · 1, preview** | Play a 5-second **Recorded rehearsal** inset: green → red `chunk 2, bytes 8192–12287` → new restored version green. Close it; open P `/cases/[id]`. | “One changed byte can undermine a case. Watch us locate its chunk, identify recent access, and recover a protected original. We will repeat that live.” This previews the step-4 wow moment inside 30 seconds. |
-| **0:15–0:40 · 1, police upload** | Click **Upload document** → FIR → select `FIR_0142.txt` → **Upload** → expand receipt. | “Inspector Patil submits evidence. The backend encrypts it, signs its commitment, and records custody.” Point to plaintext SHA-256, AES-256-GCM, ML-KEM wrapping, ML-DSA signature and audit-entry ID. Show pending/unanchored honestly; the file is below 4 MB. |
-| **0:40–1:00 · 2, zero trust** | Switch to F profile → navigate to unassigned case deep link → show **Access denied**. Switch J audit tab → latest **DENIED** row. Return F assigned case → **Upload document** → forensic report → submit. | “Lab access is restricted to assigned cases. This denied attempt is recorded. The same lab can submit a report to its assigned investigation.” Show successful receipt. |
-| **1:00–1:25 · 3, prosecutor verifies** | Switch R → assigned case → open the **pre-anchored FIR fixture** → IntegrityPanel → six checks → **View on Polygon Amoy** → return. | “This prepared document is fully verified. ML-DSA signatures are checked off-chain by our backend. Polygon stores hashes and the verifier’s attestation; it does not verify the PQ signature itself.” Point to batch ID, confirmed root and real transaction. |
-| **1:25–1:45 · 4, insider attack** | Human operator runs Claude's fixture attack script. Switch J `/integrity` → **Run integrity scan** → open red finding. | “An insider with key access decrypts the evidence, changes one plaintext byte, then re-encrypts it with a valid tag and overwrites the current S3 object.” Show decryption pass but content/hash checks fail. “Chunk 2: bytes 8192–12287. The script changed offset 9000; verification independently narrows it to this chunk.” |
-| **1:45–2:20 · 4, recovery** | Expand **Last accessors**. Switch P to damaged document → **Restore original (S3 Object Lock)** → enter “Recover retained original after demo integrity incident” → confirm → open new version → verify/refresh after backend anchor confirms. | “These are recent accessors, not proof of guilt. S3 Object Lock retained the original. Restore creates a new signed version and preserves the red incident history.” Show new version's green VERIFIED after confirmed anchoring, then old version still red. If pending, use the honest fallback below. |
-| **2:20–3:00 · 5, assistant + close** | Open `/assistant` in R profile → select assigned case → ask **“What does the forensic report conclude about the seized device?”** → expand cited report → point to hash/status; finish on AWS & trust strip. | “The answer retrieves only evidence this prosecutor can access, with verifiable citations. It supports review; it does not decide the case.” Example fictional answer: “The report records a USB device received under seal and a matching acquisition checksum; it does not establish authorship.” Close: “Encrypted evidence, restricted access, detectable changes, recoverable originals—with AWS protecting each layer.” |
+| 0:00–0:30 | Police: My cases → Register case → copy assigned FIR No. → open case → Upload document → FIR → choose file → Review upload → Encrypt and upload | Show the assigned code tag, upload receipt, AES-256-GCM, ML-KEM-768, ML-DSA-65 and audit reference. Keep UNANCHORED or PENDING_ANCHOR labels visible. |
+| 0:30–0:55 | Forensic: open unassigned case link; then assigned case → Upload document → Forensic report | Show access denied, then permitted upload. Judge/Admin can inspect the DENIED audit event and its legal basis. |
+| 0:55–1:20 | Judge/Admin: Home → Live blockchain activity; Prosecutor: prepared document → Verify now | Watch submitted/confirmed transactions, block number and Etherscan receipt. Show six checks and VERIFIED on the prepared document. ML-DSA is verified off-chain by our backend; the chain stores hashes and the verifier's attestation. |
+| 1:20–1:50 | Human runs approved attack tool; Admin: Integrity → Run integrity scan → affected document | Show red TAMPERED, chunk 2, bytes 8192–12287, the failed checks and storage part. Content is withheld. Recent accessors are context, not proof of responsibility. |
+| 1:50–2:20 | Police: damaged document → Restore original → enter reason → Confirm recovery → Open recovered version | Restore appends a new version. The damaged version and audit history remain. Keep amber until the backend returns VERIFIED; refresh after anchoring. |
+| 2:20–2:45 | Advocate: Document requests → File request → FIR No. → Find case → tick titles → citation and reason → File request. Judge: Requests queue → Review request → order reference and note → Confirm grant | Access requires the court decision. Advocate opens the granted document and sees the court-order banner, expiry and watermarked download notice. |
+| 2:45–3:00 | Complainant: My case progress; Admin: Audit chain → Verify audit chain / Verify FIR register | Show public-safe milestones, then immutable event/legal-basis records and register checks. Finish on the trust copy. |
 
-## Honest failure cues
+## Validation and fallback
 
-- Chain pending after restore: keep amber on the live screen. Say “The restored content checks pass; its new anchor is awaiting confirmation.” Show labelled recorded rehearsal of the final green state. Never call the live recovery fully VERIFIED until the backend does.
-- API failure: explicitly open **Demo data — simulated results** or prepared screenshots, name the unavailable dependency, and continue the same clicks. Do not show fabricated explorer transactions.
-- Assistant cut: keep step 5, display **Illustrative answer — Bedrock unavailable**, explain citations/access filtering as the intended bonus, and spend remaining seconds on the live custody trail.
-- Decryption fails during attack: show the red authentication failure honestly; do not invent a chunk range. Use the labelled rehearsal for the successful re-encryption/localization scenario.
+- Check Login, Home, Cases, Case detail, Document, Integrity, Requests, Audit, Batches and Progress at 1280px and 375px. Capture Login, Cases and Document before/after.
+- With 40 cases, search FIR/station, combine Stage/Station/Integrity filters, sort each column, then move between two 20-row pages. Clear filters and confirm page resets.
+- A pending anchor stays amber. Chain failure stays visible. Do not call a recovery verified until status is VERIFIED.
+- If live services fail, switch explicitly to the offline build, state that the results are simulated, and retain the demo banner. Never fabricate an explorer transaction.
+- Assistant and public verification are deferred; keep the unavailable screens. Spend demo time on working case, integrity and custody flows.
+
+## Verification status for this redesign
+
+Typecheck, lint and a production build are required before delivery. Browser visual review and live UI rehearsal must be completed using a connected browser. The editing session currently has no browser connection; responsive checks and before/after screenshots remain pending.

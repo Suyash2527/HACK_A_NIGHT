@@ -28,6 +28,14 @@ export async function apiFetch<R extends ApiRoute>(route: R, request = {} as Api
   } else if (request.body !== undefined) { init.headers = { "Content-Type": "application/json" }; init.body = JSON.stringify(request.body) }
   const response = await fetch(search.size ? `${path}?${search}` : path, init)
   if (!response.ok) throw new ApiClientError(response.status, await response.json() as ApiErrorBody)
-  if (route === "GET /api/documents/[id]/content" || route === "GET /api/cases/[id]/bundle") return await response.blob() as RouteResult<R>
+  if (route === "GET /api/documents/[id]/content" || route === "GET /api/cases/[id]/bundle") {
+    const blob=await response.blob()
+    const disposition=response.headers.get("Content-Disposition")??""
+    const encodedName=disposition.split("filename*=UTF-8''")[1]?.split(";")[0]
+    const plainName=disposition.split('filename="')[1]?.split('"')[0]
+    let filename=plainName
+    if(encodedName){try{filename=decodeURIComponent(encodedName)}catch{}}
+    return (filename?new File([blob],filename,{type:blob.type}):blob) as RouteResult<R>
+  }
   return await response.json() as RouteResult<R>
 }

@@ -1,4 +1,4 @@
-import { FIR_NUMBER_PATTERN, MERKLE_CHUNK_BYTES, STORAGE_PART_BYTES, type AllowedMime } from "@/types/api"
+import { CASE_STAGES, FIR_NUMBER_PATTERN, MERKLE_CHUNK_BYTES, STORAGE_PART_BYTES, type AllowedMime } from "@/types/api"
 import type { AssemblyReport, AuditChainResult, AuditEntry, BatchSummary, CaseDetail, CaseProgress, CaseSummary, ChainInfo, DocumentDetail, DocumentRequest, DocumentSummary, Page, Role, ScanDetail, Session, VerifyResult, FirCheck, FirRegisterResult, UploadFormFields, UploadReceipt } from "@/types/api"
 
 const HASH_A = "0123456789abcdef".repeat(4)
@@ -25,6 +25,9 @@ export const MOCK_CASES: Page<CaseSummary> = { items: [
   { id: "22222222-2222-4222-8222-222222222222", firNo: "PCH/2026/0187/B7D2", station: "Panchavati Police Station", stage: "FORENSIC_ANALYSIS", status: "OPEN", createdAt: "2026-10-09T13:20:00Z", documentCount: 1, integrity: counts(1) },
 ], nextCursor: null }
 
+
+const sampleStations=[{code:"GNG",name:"Gangapur Police Station"},{code:"PCH",name:"Panchavati Police Station"},{code:"NSR",name:"Nashik Road Police Station"}]
+MOCK_CASES.items.push(...Array.from({length:38},(_,i):CaseSummary=>{const station=sampleStations[i%3];const count=2+i%5;const status=i%9===0?"TAMPERED":i%7===0?"PENDING_ANCHOR":i%5===0?"UNANCHORED":"VERIFIED";return {id:"a0000000-0000-4000-8000-"+String(i+3).padStart(12,"0"),firNo:station.code+"/2026/"+String(200+i).padStart(4,"0")+"/"+(0xB100+i).toString(16).toUpperCase(),station:station.name,stage:CASE_STAGES[i%CASE_STAGES.length],status:i%CASE_STAGES.length===6?"CLOSED":"OPEN",createdAt:new Date(Date.UTC(2026,9,9-i%20,9,i)).toISOString(),documentCount:count,integrity:{...counts(status==="VERIFIED"?count:count-1),[status]:status==="VERIFIED"?count:1}}}))
 export const MOCK_CASE: CaseDetail = { ...MOCK_CASES.items[0], allowedUploadTypes: ["FIR", "WITNESS_STATEMENT"], canUpload: true, assignments: [
   { userName: "Inspector Aditi Patil", role: "POLICE" }, { userName: "Dr. Neha Kulkarni", role: "FORENSIC_LAB" }, { userName: "Adv. Rohan Deshmukh", role: "PUBLIC_PROSECUTOR" },
 ], manifest: { version: 2, root: HASH_B, documentCount: 2, sealedAt: "2026-10-10T05:02:00Z", anchor: { txHash: TX, explorerUrl: null, status: "confirmed" } }, canAssemble: true, canRequestDocuments: false }
