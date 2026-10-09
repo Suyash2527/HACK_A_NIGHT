@@ -16,7 +16,8 @@
     "test:aws": "tsx --test tests/aws-integration.test.ts",
     "import:cases": "tsx scripts/import-cases.mts",
     "merge:data": "node scripts/merge-data.mjs",
-    "chain:e2e": "tsx scripts/chain-e2e.mts"
+    "chain:e2e": "tsx scripts/chain-e2e.mts",
+    "anchor": "tsx scripts/anchor.mts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1148.0",
