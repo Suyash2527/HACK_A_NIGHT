@@ -17,7 +17,8 @@ export interface AttackReport {
 }
 
 export function demoAttackEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.SAKSHYA_DEMO_ATTACK === "1" && env.NODE_ENV !== "production";
+  // explicit opt-in only (set on the demo server, absent everywhere else); the route is additionally ADMIN-only
+  return env.SAKSHYA_DEMO_ATTACK === "1";
 }
 
 export async function insiderAttack(docId: string, offset = 9000, store: PartStore = getPartStore()): Promise<AttackReport> {

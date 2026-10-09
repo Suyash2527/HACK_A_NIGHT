@@ -409,6 +409,13 @@ export interface ChainInfo {
   explorerAddressUrl: string | null;
 }
 
+// ───────────────────────────── demo-only (exists only when the server runs with SAKSHYA_DEMO_ATTACK=1; otherwise 404)
+export interface DemoAttackRequest { docId: UUID; offset?: number }
+/** Insider simulation: ONE plaintext byte is flipped and re-encrypted validly in storage, behind the application's back. */
+export interface DemoAttackReport {
+  docId: UUID; offset: number; partIndex: number; flippedByte: { before: number; after: number }; overwrittenAddress: Hash; note: string;
+}
+
 // ───────────────────────────── deferred / bonus (types reserved; routes return FEATURE_DISABLED until built)
 export interface PublicReceipt { docId: UUID; checkedAt: ISODate; verification: VerifyResult }
 export interface AssistantRequest { caseId: UUID; question: string }
@@ -467,6 +474,9 @@ export interface ApiRoutes {
   "GET /api/chain": { res: ChainInfo };
   /** live feed of backend transactions, newest first — the "watch it happen" view for judges */
   "GET /api/chain/transactions": Q<{ docId?: UUID; caseId?: UUID; cursor?: string; limit?: number }> & { res: Page<ChainTx> };
+
+  /** ADMIN only, and only when SAKSHYA_DEMO_ATTACK=1 on the server (404 otherwise). Rehearsal tool for the tamper-detection scene. */
+  "POST /api/demo/attack": { body: DemoAttackRequest; res: DemoAttackReport };
 
   // deferred — return 503 FEATURE_DISABLED until built
   "GET /api/verify/[docId]": { res: PublicReceipt };
