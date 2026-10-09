@@ -1,0 +1,45 @@
+{
+  "name": "sakshya-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@noble/post-quantum": "^0.7.1",
+    "@nomicfoundation/hardhat-ethers": "^4.2.0",
+    "@nomicfoundation/hardhat-ignition": "^3.1.8",
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^4.0.0",
+    "@types/chai": "^5.2.3",
+    "@types/chai-as-promised": "^8.0.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.20.5",
+    "chai": "^6.3.0",
+    "ethers": "^6.17.0",
+    "hardhat": "^3.19.0",
+    "mocha": "^12.0.3",
+    "typescript": "~6.0.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.6.1"
+  },
+  "description": "Sakshya on-chain audit layer (SakshyaRegistry) \u2014 Hardhat 3 + ethers v6, Polygon Amoy",
+  "scripts": {
+    "build": "hardhat build",
+    "test": "hardhat test",
+    "typecheck": "tsc --noEmit",
+    "node": "hardhat node",
+    "wallet:new": "node scripts/new-wallet.ts",
+    "preflight:local": "hardhat run scripts/preflight.ts --network localhost",
+    "preflight:amoy": "hardhat run scripts/preflight.ts --network amoy",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:amoy": "hardhat run scripts/deploy.ts --network amoy",
+    "deploy:polygon": "hardhat run scripts/deploy.ts --network polygon",
+    "index:local": "hardhat run scripts/index-events.ts --network localhost",
+    "index:amoy": "hardhat run scripts/index-events.ts --network amoy",
+    "smoke:local": "hardhat run scripts/smoke.ts --network localhost",
+    "smoke:amoy": "hardhat run scripts/smoke.ts --network amoy",
+    "preflight:sepolia": "hardhat run scripts/preflight.ts --network sepolia",
+    "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
+    "smoke:sepolia": "hardhat run scripts/smoke.ts --network sepolia",
+    "index:sepolia": "hardhat run scripts/index-events.ts --network sepolia"
+  }
+}

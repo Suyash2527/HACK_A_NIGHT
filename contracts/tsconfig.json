@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "lib": ["es2023"],
+    "module": "node16",
+    "target": "es2022",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["node", "mocha"]
+  },
+  "include": ["hardhat.config.ts", "config/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "types/**/*.ts"]
+}
