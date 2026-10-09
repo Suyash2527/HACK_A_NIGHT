@@ -30,7 +30,7 @@
 
 <!-- ============ COVER ============ -->
 <section class="page cover">
-  <div><span class="tag">PS 3 · LegalTech</span><span class="tag">Post-quantum</span><span class="tag">Zero-trust</span><span class="tag">AWS + Polygon</span></div>
+  <div><span class="tag">PS 3 · LegalTech</span><span class="tag">Post-quantum</span><span class="tag">Zero-trust</span><span class="tag">AWS + Ethereum Sepolia</span></div>
   <h1>Sakshya</h1>
   <p style="font-size:18px;margin:4px 0 14px">Tamper-evident, quantum-safe, zero-trust judicial &amp; forensic document management</p>
   <p class="sub">System architecture · workflows · access model · trust boundaries<br>Hack-a-Night 2026 · PVGCOE Nashik · prepared 9 Oct 2026</p>
@@ -58,12 +58,12 @@
       <div class="box"><b>S3 + Object Lock + versioning</b>ciphertext parts stored by hash (SSE-KMS)</div>
       <div class="box"><b>AWS KMS</b>protects PQ seeds; optional ML-DSA signer</div>
       <div class="box">EventBridge scans · CloudTrail key-use log · Bedrock assistant (bonus)</div></div>
-    <div class="lane chain"><div class="t">Polygon (audit &amp; coordination layer)</div>
+    <div class="lane chain"><div class="t">Ethereum Sepolia testnet (audit &amp; coordination layer)</div>
       <div class="box"><b>SakshyaRegistry</b> (Solidity)<br>record hashes, verifier attestations, audit-event chains, case-folder manifests, batch roots</div>
       <div class="box">Stores <u>only hashes and addresses</u> — never documents, keys or signatures</div>
-      <div class="box">Chain: <span class="pill local">local dev chain now</span> → Polygon Amoy (80002) when funded</div></div>
+      <div class="box">Chain: <span class="pill built">live on Sepolia (11155111)</span> · contract 0x149A…4fDA</div></div>
   </div>
-  <div class="note"><b>Key idea:</b> Polygon is the notary, not the vault. Encryption and post-quantum cryptography run in our backend; the chain publicly timestamps hashes so later edits are provable.</div>
+  <div class="note"><b>Key idea:</b> The chain is the notary, not the vault. Encryption and post-quantum cryptography run in our backend; the chain publicly timestamps hashes so later edits are provable.</div>
 </section>
 
 <!-- ============ UPLOAD WORKFLOW ============ -->
@@ -88,7 +88,7 @@
     <tr><td>Wrapped file key, IVs</td><td>RDS</td></tr>
     <tr><td>Hashes, chunk leaves, signature</td><td>RDS</td></tr>
     <tr><td>Audit chain</td><td>RDS + hash on chain</td></tr>
-    <tr><td>Document / manifest / batch hashes</td><td>Polygon registry</td></tr>
+    <tr><td>Document / manifest / batch hashes</td><td>Sepolia registry</td></tr>
     <tr><td>Plaintext, private keys</td><td><b>Nowhere</b> (memory only)</td></tr></table>
     <div class="note">Corrections never overwrite: a new version is appended with <code>parentId</code>, and the registry enforces <code>version &gt; parent.version</code>.</div>
   </div></div>
@@ -212,22 +212,21 @@
       <tr><td>Who accessed it, and why</td><td>hash-chained audit with legal basis</td></tr>
       <tr><td>The ML-DSA signature is valid</td><td><b>Our backend verifier</b> checked it; the chain stores its attestation. <u>The blockchain does not verify post-quantum signatures.</u> Anyone can re-verify from the stored signature and key hashes.</td></tr>
       <tr><td>Recent accessors are guilty</td><td><b>Not claimed</b> — context only</td></tr></table>
-      <div class="note"><b>Post-quantum scope:</b> ML-KEM-768 protects document-key wrapping and ML-DSA-65 signs commitments. Polygon's own consensus and transaction signatures are <u>not</u> quantum-safe. Trust dependencies: the backend verifier and the protection of signing / decryption keys (KMS).</div>
+      <div class="note"><b>Post-quantum scope:</b> ML-KEM-768 protects document-key wrapping and ML-DSA-65 signs commitments. The chain's own consensus and transaction signatures are <u>not</u> quantum-safe. Trust dependencies: the backend verifier and the protection of signing / decryption keys (KMS).</div>
     </div>
     <div>
-      <h3>Build status (9 Oct 2026)</h3>
+      <h3>Build status (10 Oct 2026)</h3>
       <table><tr><th>Component</th><th>Status</th></tr>
-      <tr><td>Crypto: ML-KEM / ML-DSA / AES-GCM / parts</td><td><span class="pill built">built · 23 tests pass</span></td></tr>
-      <tr><td>Merkle trees, tamper localisation</td><td><span class="pill built">built · tested</span></td></tr>
-      <tr><td>Content-addressed part store (local folder)</td><td><span class="pill built">built</span> <span class="pill local">S3 next</span></td></tr>
-      <tr><td>Registry contract + scripts</td><td><span class="pill built">built · 32 tests pass</span></td></tr>
-      <tr><td>Chain used in demo</td><td><span class="pill local">local dev chain (31337)</span></td></tr>
-      <tr><td>Polygon Amoy deployment</td><td><span class="pill planned">pending test POL</span></td></tr>
-      <tr><td>UI (mock data)</td><td><span class="pill built">built</span> <span class="pill planned">light redesign in progress</span></td></tr>
-      <tr><td>Database schema + RLS, API routes, audit</td><td><span class="pill planned">next</span></td></tr>
-      <tr><td>AWS: KMS, S3, RDS, Cognito, EC2 + CloudFront</td><td><span class="pill planned">pending AWS account setup</span></td></tr>
-      <tr><td>Bedrock assistant, EventBridge scans</td><td><span class="pill planned">bonus</span></td></tr></table>
-      <div class="foot">"Built" = implemented and tested locally. Nothing in this document claims a live AWS deployment or a Polygon public-network deployment yet.</div>
+      <tr><td>Crypto: ML-KEM-768 / ML-DSA-65 / AES-256-GCM, 64 KiB encrypted parts</td><td><span class="pill built">built · tested</span></td></tr>
+      <tr><td>Merkle trees, byte-range tamper localisation</td><td><span class="pill built">built · tested</span></td></tr>
+      <tr><td>Content-addressed store on S3 (Object Lock + versioning)</td><td><span class="pill built">live</span></td></tr>
+      <tr><td>PostgreSQL 17 on RDS: row-level security, append-only tables, hash-chained audit log and FIR register</td><td><span class="pill built">live</span></td></tr>
+      <tr><td>API: cases, documents, verify, restore, audit, scans, requests, assembly, chain feed</td><td><span class="pill built">live · 133 tests + live end-to-end run</span></td></tr>
+      <tr><td>SakshyaRegistry on Ethereum Sepolia; batch anchoring; on-chain root check</td><td><span class="pill built">live</span></td></tr>
+      <tr><td>Cognito sign-in, EC2 + Caddy HTTPS, KMS</td><td><span class="pill built">live</span></td></tr>
+      <tr><td>40 fictional case folders (148 documents)</td><td><span class="pill built">imported</span></td></tr>
+      <tr><td>Bedrock assistant, public verify receipts, EventBridge scans, CloudFront</td><td><span class="pill planned">not built</span></td></tr></table>
+      <div class="foot">"Live" = running at https://3-109-114-12.sslip.io. The chain is a public testnet: it stores hashes and the verifier's attestation; ML-DSA signatures are verified off-chain by our backend. Court-granted PDF/Word/image copies are marked by file name and header only; plain-text copies are stamped inside the file.</div>
     </div>
   </div>
 </section>
