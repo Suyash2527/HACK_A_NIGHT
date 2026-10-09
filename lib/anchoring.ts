@@ -34,7 +34,7 @@ async function anchorOnce(deps?: AnchorDeps): Promise<AnchorResult | null> {
 
   // 1. a batch that was built earlier but never got a confirmed transaction is retried first (same id, same root)
   let batch = await db.withAnchor(async (tx) => (await tx.query<{ id: string; root: string; doc_count: number; signature_hash: string }>(
-    "SELECT id, root, doc_count, signature_hash FROM merkle_batches WHERE tx_hash IS NULL ORDER BY id LIMIT 1")).rows[0]);
+    "SELECT id, root, doc_count, signature_hash FROM merkle_batches WHERE status = 'pending' ORDER BY id LIMIT 1")).rows[0]);
 
   // 2. otherwise build a new batch
   if (!batch) {
@@ -58,6 +58,17 @@ async function anchorOnce(deps?: AnchorDeps): Promise<AnchorResult | null> {
       return { id: row.id, root: tree.root, doc_count: docs.length, signature_hash: sigHash };
     });
     if (!batch) return null;
+  }
+
+  // 2b. a retried batch may already be on-chain (its earlier confirmation was never recorded): do not send it again
+  if (batch && (await chain.batchRoot(Number(batch.id)).catch(() => null)) === batch.root) {
+    const prior = await db.withAnchor(async (tx) => (await tx.query<{ tx_hash: string }>(
+      "SELECT tx_hash FROM chain_txs WHERE kind = 'ANCHOR_BATCH' AND status = 'confirmed' AND label LIKE $1 ORDER BY created_at DESC LIMIT 1", [`Anchored batch #${batch!.id} (%`])).rows[0]?.tx_hash ?? null);
+    await db.withAnchor(async (tx) => {
+      await tx.query("UPDATE merkle_batches SET tx_hash = $2, status = 'confirmed', anchored_at = now() WHERE id = $1", [batch!.id, prior]);
+      if (prior) await tx.query("UPDATE documents SET anchor_tx = $2, anchored_at = now() WHERE batch_id = $1 AND anchor_tx IS NULL", [batch!.id, prior]);
+    });
+    return { batchId: Number(batch.id), docCount: Number(batch.doc_count), root: batch.root, txHash: prior, confirmed: true };
   }
 
   // 3. commit on-chain; resolves once the transaction is mined (or failed). Nothing here is on the request path.

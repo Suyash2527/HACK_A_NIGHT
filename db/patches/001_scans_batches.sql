@@ -49,4 +49,34 @@ BEGIN
 END $$;
 GRANT EXECUTE ON FUNCTION request_case_fir(uuid), request_validate(uuid, uuid[]) TO app_user;
 
+-- The live feed of blockchain transactions (older databases were created before this table existed).
+CREATE TABLE IF NOT EXISTS chain_txs (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  kind         text NOT NULL CHECK (kind IN ('REGISTER_RECORD','ATTEST_SIGNATURE','SEAL_MANIFEST','AUDIT_EVENT','ANCHOR_BATCH')),
+  tx_hash      text NOT NULL UNIQUE CHECK (tx_hash ~ '^0x[0-9a-f]{64}$'),
+  chain_id     bigint NOT NULL,
+  doc_id       uuid REFERENCES documents(id),
+  case_id      uuid REFERENCES cases(id),
+  label        text NOT NULL,
+  status       text NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','confirmed','failed')),
+  block_number bigint,
+  error        text,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  confirmed_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS chain_txs_doc_idx ON chain_txs(doc_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS chain_txs_case_idx ON chain_txs(case_id, created_at DESC);
+ALTER TABLE chain_txs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chain_txs FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS owner_all ON chain_txs;
+CREATE POLICY owner_all ON chain_txs TO app_owner USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS chain_txs_select ON chain_txs;
+CREATE POLICY chain_txs_select ON chain_txs FOR SELECT TO app_user
+  USING (app.is_court() OR (doc_id IS NOT NULL AND app.can_read_doc(doc_id)) OR (doc_id IS NULL AND case_id IS NOT NULL AND app.is_assigned(case_id)));
+DROP POLICY IF EXISTS chain_txs_anchor ON chain_txs;
+CREATE POLICY chain_txs_anchor ON chain_txs FOR ALL TO app_anchor USING (true) WITH CHECK (true);
+GRANT SELECT ON chain_txs TO app_user;
+GRANT SELECT, INSERT ON chain_txs TO app_anchor;
+GRANT UPDATE (status, block_number, error, confirmed_at) ON chain_txs TO app_anchor;
+
 RESET ROLE;
