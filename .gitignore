@@ -53,3 +53,6 @@ infra/aws-state.json
 
 # editor/agent tooling state
 .claude/
+
+# scratch recording tooling (not project code)
+video/
