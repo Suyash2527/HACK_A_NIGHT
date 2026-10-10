@@ -16,7 +16,6 @@ One FIR is one case folder. Every document in it is encrypted, signed with a pos
 - [What Sakshya does](#what-sakshya-does)
 - [Who uses it](#who-uses-it)
 - [How a document is protected](#how-a-document-is-protected)
-- [Case assistant](#case-assistant)
 - [Architecture](#architecture)
 - [Run it locally](#run-it-locally)
 - [Deploy and verify](#deploy-and-verify)
