@@ -7,6 +7,15 @@ One FIR is one case folder. Every document in it is encrypted, signed with a pos
 - **Live demo:** https://3-109-114-12.sslip.io (fictional data only)
 - **Event:** Hack-a-Night 2026, PVGCOE Nashik, problem statement 3
 - **Languages:** English, हिन्दी, मराठी
+- **License:** [MIT](LICENSE)
+
+| | |
+|---|---|
+| API routes | 31, every one typed against [`types/api.ts`](types/api.ts) |
+| Backend modules | 34 files, 3,195 lines in `lib/` — crypto, Merkle, storage, evidence, audit, chain |
+| Automated tests | 144 passing, against a real PostgreSQL engine with row-level security enabled, not mocks |
+| Smart-contract tests | 33 passing (Hardhat, `contracts/test/`) |
+| Live rehearsal data | 42 cases, 152 documents, imported and anchored on Sepolia |
 
 ---
 
@@ -19,12 +28,21 @@ One FIR is one case folder. Every document in it is encrypted, signed with a pos
 2. Open any case under **Cases** → open a document → you'll see a green **Verified** stamp with six passing checks.
 3. From the case list, open a case flagged **"Tampered · changed"** (see the banner on the Cases page) → open its document → you'll see a red **Tampered** stamp naming the exact byte range that changed, with a **Restore the original** action available to the uploading role.
 
-**If you'd rather read the code**, the three places that matter most:
-- [`lib/`](lib/) — the actual cryptography and tamper detection: `crypto/pqc.ts` + `crypto/parts.ts` (encryption, PQ signing), `merkle.ts` (chunk hashing), `evidence.ts` (the six-check verification pipeline), `audit.ts` (hash-chained log).
-- [`app/api/`](app/api) — every HTTP route, typed against [`types/api.ts`](types/api.ts), the single contract both frontend and backend code against.
-- [`db/schema.sql`](db/schema.sql) and [`db/patches/`](db/patches) — row-level security policies and append-only triggers enforced *in Postgres*, not just in application code, so a bug in a route can't leak another case's evidence.
+**What that red stamp means, concretely.** In our own rehearsal of the attack (one byte flipped in a validly re-encrypted 16 KiB FIR, logged in [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md)), the next integrity scan reported the document TAMPERED and localised the change to **chunk 2, bytes 8192–12287** — out of 16,384 bytes, i.e. a quarter of the file was correctly narrowed down to the one 4 KiB region that actually changed. Content was withheld with HTTP 409. The uploading officer restored the locked original as version 2; it came back byte-identical and verified green. Version 1 stays on record in red — nothing is overwritten.
 
-**What makes this different from "just encrypt the file":** the signing is post-quantum (ML-KEM-768 / ML-DSA-65, not RSA/ECDSA), tampering is localized to a specific 4 KB chunk rather than just flagged, the original is never overwritten (S3 Object Lock + append-only versions), and every detection is anchored on a public blockchain so it can't be quietly erased later. The sections below walk through all of this in order.
+**If you'd rather read the code**, the three places that matter most:
+- [`lib/`](lib/) — the cryptography and tamper detection: `crypto/pqc.ts` + `crypto/parts.ts` (encryption, PQ signing), `merkle.ts` (chunk hashing), `evidence.ts` (the six-check verification pipeline, 459 lines), `audit.ts` (hash-chained log).
+- [`app/api/`](app/api) — every HTTP route, typed against [`types/api.ts`](types/api.ts), the single contract both frontend and backend code against. Nothing is left as `any`.
+- [`db/schema.sql`](db/schema.sql) and [`db/patches/`](db/patches) — row-level security policies and append-only triggers enforced *in Postgres itself*, not just in application code, so a bug in a route can't leak another case's evidence.
+
+**What makes this different from "just encrypt the file":**
+- Signing is post-quantum — **ML-KEM-768 / ML-DSA-65**, not RSA or ECDSA — so a future quantum computer breaking today's asymmetric crypto doesn't retroactively forge evidence signed now.
+- Tampering is *localised* to a specific 4 KB chunk, not just flagged as "changed" — see the real example above.
+- The original is never overwritten: S3 Object Lock plus append-only versions mean a correction is a new signed record, not a silent edit.
+- Every tamper detection is anchored on a public blockchain, so a finding can't be quietly deleted from our own database later.
+- Access is checked twice — once in the API route, again by PostgreSQL row-level security — so a missed `WHERE` clause in a route still can't leak a case.
+
+The sections below walk through all of this in order.
 
 ---
 
@@ -121,6 +139,8 @@ Status shown everywhere: **VERIFIED** (green), **PENDING_ANCHOR** / **UNANCHORED
 - **Full specification:** [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md)
 - **API contract:** every request and response shape is in [`types/api.ts`](types/api.ts)
 
+Why EC2 and not Lambda: the app is a long-running Next.js server with a pooled Postgres connection and per-request row-level-security context — both awkward to shard across ephemeral, concurrently cold-started Lambda executions without adding RDS Proxy. Large file assembly (encrypted 64 KiB parts, ZIP bundles) is stream-shaped work that's a non-issue on a persistent server and an active constraint to design around under Lambda's execution limits.
+
 ## Run it locally
 
 You need Node.js 22.10 or newer. No AWS account is needed locally: it uses an embedded Postgres in `.data/`, a local folder for file parts, and no chain.
@@ -137,14 +157,14 @@ Load the fictional cases (optional):
 npm run import:cases -- data/cases
 ```
 
-Checks:
+Checks — all of these pass with zero errors and zero warnings on `main`:
 
 ```bash
-npm run test:unit       # crypto, Merkle, RLS, routes, tamper
+npm run test:unit       # 144 tests: crypto, Merkle, RLS, routes, tamper, restore
 npm run typecheck
 npm run lint
 npm run build
-cd contracts && npx hardhat test
+cd contracts && npx hardhat test   # 33 tests
 ```
 
 Every variable is documented in [`.env.example`](.env.example).
@@ -168,6 +188,8 @@ npx tsx scripts/e2e-live.mts https://3-109-114-12.sslip.io
 npx tsx scripts/smoke-live.mts https://3-109-114-12.sslip.io
 ```
 
+Both scripts exercise the real deployment with real Cognito logins and real Sepolia transactions — nothing in them is simulated. Results are logged in [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md).
+
 ## Demo in five minutes
 
 Full script: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
@@ -182,17 +204,17 @@ Full script: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 ## Repository layout
 
 ```
-app/            pages (court-register UI) and app/api/ route handlers
-components/     UI components, i18n (en / hi / mr)
-lib/            crypto (pqc, parts), merkle, storage, evidence, audit, cases,
-                requests, assembly, anchoring, chain, db
+app/            pages (court-register UI) and app/api/ route handlers     — 31 routes
+components/     UI components, i18n (en / hi / mr)                        — 33 components
+lib/            crypto (pqc, parts), merkle, storage, evidence, audit,
+                cases, requests, assembly, anchoring, chain, db           — 34 files, 3,195 lines
 types/api.ts    the API contract shared by server and UI
 db/             schema.sql + idempotent patches/ (RLS, triggers, audit chain)
-contracts/      SakshyaRegistry.sol, tests and deployment records
+contracts/      SakshyaRegistry.sol, tests and deployment records         — 33 Hardhat tests
 infra/          PowerShell scripts for AWS setup and deploy
 scripts/        case importer, anchoring, live end-to-end and smoke tests
-data/           fictional case sets (PDF)
-tests/          library and route tests on embedded Postgres with real RLS
+data/           fictional case sets (PDF)                                 — 60 cases
+tests/          library and route tests on embedded Postgres with real RLS — 144 tests
 docs/           spec, architecture, demo script, pitch, test report
 ```
 
