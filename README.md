@@ -10,6 +10,24 @@ One FIR is one case folder. Every document in it is encrypted, signed with a pos
 
 ---
 
+## For reviewers — the fastest way to understand this project
+
+**In one sentence:** police upload evidence to a case file; Sakshya encrypts and signs it, and if anyone changes even one byte afterwards — in the database, in storage, anywhere — it is detected, shown in red, and the original is restored without losing the record that a tampering attempt happened.
+
+**Try it live in under a minute**, no setup required:
+1. Open https://3-109-114-12.sslip.io and sign in as `judge@sakshya.demo` (password in `.env.local` as `DEMO_PASSWORD`, or ask us).
+2. Open any case under **Cases** → open a document → you'll see a green **Verified** stamp with six passing checks.
+3. From the case list, open a case flagged **"Tampered · changed"** (see the banner on the Cases page) → open its document → you'll see a red **Tampered** stamp naming the exact byte range that changed, with a **Restore the original** action available to the uploading role.
+
+**If you'd rather read the code**, the three places that matter most:
+- [`lib/`](lib/) — the actual cryptography and tamper detection: `crypto/pqc.ts` + `crypto/parts.ts` (encryption, PQ signing), `merkle.ts` (chunk hashing), `evidence.ts` (the six-check verification pipeline), `audit.ts` (hash-chained log).
+- [`app/api/`](app/api) — every HTTP route, typed against [`types/api.ts`](types/api.ts), the single contract both frontend and backend code against.
+- [`db/schema.sql`](db/schema.sql) and [`db/patches/`](db/patches) — row-level security policies and append-only triggers enforced *in Postgres*, not just in application code, so a bug in a route can't leak another case's evidence.
+
+**What makes this different from "just encrypt the file":** the signing is post-quantum (ML-KEM-768 / ML-DSA-65, not RSA/ECDSA), tampering is localized to a specific 4 KB chunk rather than just flagged, the original is never overwritten (S3 Object Lock + append-only versions), and every detection is anchored on a public blockchain so it can't be quietly erased later. The sections below walk through all of this in order.
+
+---
+
 ## Contents
 
 - [The problem](#the-problem)
