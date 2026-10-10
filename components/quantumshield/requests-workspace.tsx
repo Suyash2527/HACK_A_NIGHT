@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Clock, Gavel, Send, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import type { DecideRequestBody, DocumentRequest, FileRequestBody, RequestCatalog } from "@/types/api";
+import type { AdvocateSuggestions, DecideRequestBody, DocumentRequest, FileRequestBody, RequestCatalog } from "@/types/api";
 import { api } from "@/components/api-client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,6 +17,7 @@ import { EmptyState, LegalBasisView, PageSkeleton, RelativeTime, SectionCard } f
 import { FirNumber } from "./fir-number";
 import { PageHeader } from "./page-header";
 import { useI18n } from "./i18n";
+import { AdvocateSuggestionsTable } from "./advocate-suggestions";
 
 const FILTERS = ["ALL", "PENDING", "GRANTED", "REJECTED", "EXPIRED"] as const;
 
@@ -84,6 +85,10 @@ export function RequestsWorkspace() {
 
 function FileRequestDialog({ onComplete }: { onComplete: (r: DocumentRequest) => void }) {
   const { t, label } = useI18n();
+  const session = useSession();
+  const [suggestions, setSuggestions] = useState<AdvocateSuggestions | null>(null);
+  const [suggestionError, setSuggestionError] = useState("");
+  const [suggestionBusy, setSuggestionBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [firNo, setFirNo] = useState("");
   const [catalog, setCatalog] = useState<RequestCatalog | null>(null);
@@ -100,8 +105,17 @@ function FileRequestDialog({ onComplete }: { onComplete: (r: DocumentRequest) =>
     setError("");
     setCatalog(null);
     setSelected([]);
+    setSuggestions(null);
+    setSuggestionError("");
     try {
-      setCatalog(await api("GET /api/requests/catalog", { query: { firNo: firNo.trim().toUpperCase() } }));
+      const query = { firNo: firNo.trim().toUpperCase() };
+      setCatalog(await api("GET /api/requests/catalog", { query }));
+      if (session.assistantEnabled) {
+        setSuggestionBusy(true);
+        try { setSuggestions(await api("GET /api/assistant/advocate", { query })); }
+        catch (e) { setSuggestionError(e instanceof Error ? e.message : t("assistant.failed")); }
+        finally { setSuggestionBusy(false); }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("req.lookupFailed"));
     } finally {
@@ -131,23 +145,31 @@ function FileRequestDialog({ onComplete }: { onComplete: (r: DocumentRequest) =>
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button><Send />{t("req.request")}</Button></DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] min-w-0 overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>{t("req.request")}</DialogTitle>
           <DialogDescription>{t("req.fileDesc")}</DialogDescription>
         </DialogHeader>
         <Label htmlFor="request-fir">{t("req.firNo")}</Label>
         <div className="flex gap-2">
-          <Input id="request-fir" value={firNo} className="font-mono" placeholder="STATION/YEAR/SERIAL/CODE" onChange={e => { setFirNo(e.target.value); setCatalog(null); setSelected([]); }} />
+          <Input id="request-fir" value={firNo} disabled={lookupBusy || busy} className="min-w-0 font-mono" placeholder="STATION/YEAR/SERIAL/CODE" onChange={e => { setFirNo(e.target.value); setCatalog(null); setSelected([]); setSuggestions(null); setSuggestionError(""); }} />
           <Button variant="outline" disabled={lookupBusy || !firNo.trim()} onClick={() => void lookup()}>{lookupBusy ? t("req.finding") : t("req.find")}</Button>
         </div>
         {catalog && (
           <>
             <p className="text-sm text-muted-foreground">{catalog.station} · {label(catalog.stage)}</p>
-            <fieldset className="space-y-2">
+            {session.assistantEnabled && <div className="min-w-0 space-y-2" aria-live="polite" aria-busy={suggestionBusy}>
+              {suggestionBusy && <p role="status">{t("assistant.loadingSuggestions")}</p>}
+              {suggestionError && <p role="alert" className="text-tampered">{suggestionError}</p>}
+              {suggestions && <AdvocateSuggestionsTable value={suggestions} onUse={items => {
+                setSelected(current => Array.from(new Set([...current, ...items.map(item => item.documentId)])));
+                if (items[0]) { setBasis(items[0].basisCode); setCitation(items[0].citation); }
+              }} />}
+            </div>}
+            <fieldset className="min-w-0 space-y-2">
               <legend className="mb-2 text-base font-medium">{t("req.docs")}</legend>
               {catalog.documents.map(d => (
-                <label key={d.id} className="flex items-center gap-2 border p-2 text-base">
+                <label key={d.id} className="flex items-center gap-2 border p-2 text-base [overflow-wrap:anywhere]">
                   <input type="checkbox" checked={selected.includes(d.id)} onChange={e => setSelected(s => e.target.checked ? [...s, d.id] : s.filter(i => i !== d.id))} />
                   {d.filename} · {t("case.version", { v: d.version })}
                 </label>

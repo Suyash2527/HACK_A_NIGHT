@@ -11,6 +11,7 @@ import { StatusBadge } from "./status-badge";
 import { UploadDialog } from "./upload-dialog";
 import { AssemblyReportDialog } from "./assembly-report";
 import { useI18n } from "./i18n";
+import { CaseAssistant } from "./case-assistant";
 
 export function CaseDetailView({ id }: { id: string }) {
   const { t, label } = useI18n();
@@ -70,6 +71,7 @@ export function CaseDetailView({ id }: { id: string }) {
           <EmptyState title={t("case.noDocs")} description={t(canUpload ? "case.noDocsUpload" : "case.noDocsOther")} />
         )}
       </SectionCard>
+      <CaseAssistant caseId={id} />
       <SectionCard title={t("case.team")}>
         {data.assignments.map(a => (
           <div className="flex flex-wrap justify-between gap-2 border-b py-3 last:border-0" key={a.userName}>
