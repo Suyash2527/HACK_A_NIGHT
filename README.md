@@ -207,6 +207,6 @@ docs/           spec, architecture, demo script, pitch, test report
 - **Not built:** public verification receipts (`/api/verify/[docId]` returns 503 `FEATURE_DISABLED`).
 - **Data:** all case data is fictional.
 
-## Credits
 
-Built by the team for Hack-a-Night 2026, PVGCOE Nashik. The legal corpus and the design of the permission-aware assistant come from the team's RAG work ([AnuGodse50/RAG-of-Cryptographic-data-management-](https://github.com/AnuGodse50/RAG-of-Cryptographic-data-management-)).
+
+
