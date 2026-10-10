@@ -16,7 +16,6 @@ One FIR is one case folder. Every document in it is encrypted, signed with a pos
 - [What Sakshya does](#what-sakshya-does)
 - [Who uses it](#who-uses-it)
 - [How a document is protected](#how-a-document-is-protected)
-- [Case assistant](#case-assistant)
 - [Architecture](#architecture)
 - [Run it locally](#run-it-locally)
 - [Deploy and verify](#deploy-and-verify)
@@ -50,7 +49,6 @@ A one-byte change in a 16 KB statement is 0.006% of the file, which is invisible
 | **Issues FIR numbers itself** | `GNG/2026/0007/A3F9`: gapless per station and year, with a check code from a hash-chained register, so a forged number fails validation. |
 | **Anchors on a public chain** | Document hashes are batched into Merkle trees and the roots are written to Ethereum Sepolia (`SakshyaRegistry`). Tamper detections are published there too, so a finding cannot be quietly erased. |
 | **Runs the court workflow** | A defence advocate requests documents by FIR number. A judge grants specific ones with an order reference and expiry. The advocate's copies are watermarked. The court can assemble the case folder into a bundle. |
-| **Helps the judge and the advocate** | A case assistant that reads only verified documents the user may see, plus a corpus of Indian law (see [Case assistant](#case-assistant)). |
 
 ## Who uses it
 
@@ -90,24 +88,6 @@ Every read runs the same six checks, and content is released only if they pass:
 
 Status shown everywhere: **VERIFIED** (green), **PENDING_ANCHOR** / **UNANCHORED** (amber, waiting for the next batch), **TAMPERED** (red).
 
-## Case assistant
-
-Built on the team's RAG work: a curated corpus of **42 Indian-law summaries** in `data/legal/`, with SHA-256 provenance in `manifest.json`. It covers the Constitution (Arts. 14, 20(3), 21, 22, 39A), BNSS, BSA, the DPDP Act, the IT Act, CERT-In directions and record-keeping controls.
-
-| Who | Endpoint | What it gives |
-|---|---|---|
-| Judge / Admin | `GET /api/assistant/judge-brief?caseId=` | Re-verifies every document, leaves out tampered ones, and lists **ACTION** / **CHECK** points, each tied to the law. Examples: CCTV relied on without a BSA s.63 certificate; case at charge-sheet stage with no charge sheet on file; a confession mentioned (BNSS s.183, Art. 20(3)); a seizure with no audio-video record (BNSS s.105). |
-| Defence advocate | `GET /api/assistant/advocate?firNo=` | Which documents to request, by priority and why, with a pre-filled legal basis (BNSS s.230) and the status of their existing requests. Built from document **titles only**; nothing is decrypted. |
-| Anyone who can open the case | `POST /api/assistant` | Answers a question with **verbatim quotes** from verified documents, each with its SHA-256 and verification status, plus the relevant law. |
-
-Safeguards:
-- **Access before retrieval:** row-level security filters documents before anything is searched.
-- **Integrity before use:** a document that fails verification is never read; it is listed in red instead.
-- **No index at rest:** plaintext lives in memory for one request, and every read is audited as `VIEW · assistant: …`.
-- **Summaries are labelled:** legal entries are summaries, not the official text, and the UI says so.
-
-> **Current mode: retrieval.** Model access on Amazon Bedrock is not yet enabled on the project's AWS account, so answers are ranked quotes and the brief is rule-based. Setting `BEDROCK_CHAT_MODEL_ID` lets a Bedrock model phrase answers from the same quoted passages. Its citations are checked word for word against the source, and any mismatch falls back to quotes.
-
 ## Architecture
 
 | Layer | Service |
@@ -142,7 +122,7 @@ npm run import:cases -- data/cases
 Checks:
 
 ```bash
-npm run test:unit       # 143 tests: crypto, Merkle, RLS, routes, tamper, assistant
+npm run test:unit       # crypto, Merkle, RLS, routes, tamper
 npm run typecheck
 npm run lint
 npm run build
@@ -187,13 +167,13 @@ Full script: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 app/            pages (court-register UI) and app/api/ route handlers
 components/     UI components, i18n (en / hi / mr)
 lib/            crypto (pqc, parts), merkle, storage, evidence, audit, cases,
-                requests, assembly, anchoring, chain, db, assistant/
+                requests, assembly, anchoring, chain, db
 types/api.ts    the API contract shared by server and UI
 db/             schema.sql + idempotent patches/ (RLS, triggers, audit chain)
 contracts/      SakshyaRegistry.sol, tests and deployment records
 infra/          PowerShell scripts for AWS setup and deploy
 scripts/        case importer, anchoring, live end-to-end and smoke tests
-data/           fictional case sets (PDF) and the legal corpus (data/legal)
+data/           fictional case sets (PDF)
 tests/          library and route tests on embedded Postgres with real RLS
 docs/           spec, architecture, demo script, pitch, test report
 ```
@@ -203,10 +183,9 @@ docs/           spec, architecture, demo script, pitch, test report
 - **The chain is a public testnet.** It proves that hashes existed at a point in time and were not changed afterwards. It does not verify post-quantum signatures, and Ethereum's own signatures are not quantum-safe.
 - **Trusted keys:** whoever holds the system key and write access to storage can re-encrypt a part validly. That is exactly the attack the demo shows being detected, because the signed hashes, chunk tree and part addresses no longer match.
 - **Watermarking:** advocate copies of plain text are stamped inside the file; PDF, Word and image copies are marked by file name and response header only.
-- **Case assistant:** it runs in retrieval mode until Bedrock model access is enabled (see above). Its rules flag what to check; they do not decide guilt, admissibility or credibility.
 - **Not built:** public verification receipts (`/api/verify/[docId]` returns 503 `FEATURE_DISABLED`).
 - **Data:** all case data is fictional.
 
 ## Credits
 
-Built by the team for Hack-a-Night 2026, PVGCOE Nashik. The legal corpus and the design of the permission-aware assistant come from the team's RAG work ([AnuGodse50/RAG-of-Cryptographic-data-management-](https://github.com/AnuGodse50/RAG-of-Cryptographic-data-management-)).
+Built by the team for Hack-a-Night 2026, PVGCOE Nashik.
